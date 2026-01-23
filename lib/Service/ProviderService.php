@@ -21,6 +21,7 @@ class ProviderService {
 	public const SETTING_SEND_ID_TOKEN_HINT = 'sendIdTokenHint';
 	public const SETTING_BEARER_PROVISIONING = 'bearerProvisioning';
 	public const SETTING_UNIQUE_UID = 'uniqueUid';
+	public const SETTING_NEW_USERS_REQUIRE_APPROVAL = 'newUsersRequireApproval';
 	public const SETTING_MAPPING_UID = 'mappingUid';
 	public const SETTING_MAPPING_UID_DEFAULT = 'sub';
 	public const SETTING_MAPPING_DISPLAYNAME = 'mappingDisplayName';
@@ -61,6 +62,7 @@ class ProviderService {
 		self::SETTING_PROVIDER_BASED_ID => false,
 		self::SETTING_BEARER_PROVISIONING => false,
 		self::SETTING_UNIQUE_UID => true,
+		self::SETTING_NEW_USERS_REQUIRE_APPROVAL => false,
 		self::SETTING_CHECK_BEARER => false,
 		self::SETTING_SEND_ID_TOKEN_HINT => false,
 		self::SETTING_RESTRICT_LOGIN_TO_GROUPS => false,
@@ -168,6 +170,7 @@ class ProviderService {
 			self::SETTING_MAPPING_PRONOUNS,
 			self::SETTING_MAPPING_BIRTHDATE,
 			self::SETTING_UNIQUE_UID,
+			self::SETTING_NEW_USERS_REQUIRE_APPROVAL,
 			self::SETTING_CHECK_BEARER,
 			self::SETTING_SEND_ID_TOKEN_HINT,
 			self::SETTING_BEARER_PROVISIONING,

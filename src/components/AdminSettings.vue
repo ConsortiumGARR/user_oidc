@@ -198,6 +198,7 @@ export default {
 				postLogoutUri: '',
 				settings: {
 					uniqueUid: true,
+					newUsersRequireApproval: false,
 					checkBearer: false,
 					bearerProvisioning: false,
 					providerBasedId: false,

@@ -276,6 +276,14 @@
 			{{ t('user_oidc', 'Keep in mind that disabling "Unique user IDs" means that this provider can produce user IDs that are identical to user IDs from other providers (and from other user backends if you are in non-auto-provisioning mode). This means this provider can be potentially used to authenticate as users from other providers/backends. This might be what you want to achieve. In any case, please make sure you trust this provider.') }}
 		</NcNoteCard>
 		<NcCheckboxRadioSwitch
+			v-model="localProvider.settings.newUsersRequireApproval"
+			wrapper-element="div">
+			{{ t('user_oidc', 'Disable newly created users after first login') }}
+		</NcCheckboxRadioSwitch>
+		<p class="settings-hint">
+			{{ t('user_oidc', 'By default, new users can access Nextcloud immediately. Enable this option to require administrator approval before new users can start using Nextcloud.') }}
+		</p>
+		<NcCheckboxRadioSwitch
 			v-model="localProvider.settings.providerBasedId"
 			wrapper-element="div">
 			{{ t('user_oidc', 'Use provider identifier as prefix for IDs') }}

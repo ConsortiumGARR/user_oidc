@@ -27,6 +27,10 @@ class UpsertProvider extends Base {
 			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_UNIQUE_UID,
 			'description' => 'Determines if unique user ids shall be used or not. 1 to enable, 0 to disable',
 		],
+		'new-users-require-approval' => [
+			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_NEW_USERS_REQUIRE_APPROVAL,
+			'description' => 'Require administrator approval for new users after first login. 1 to enable, 0 to disable (default)',
+		],
 		'check-bearer' => [
 			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_CHECK_BEARER,
 			'description' => 'Determines if Nextcloud API/WebDav calls should check the Bearer token against this provider or not. 1 to enable, 0 to disable (default when creating a new provider)',

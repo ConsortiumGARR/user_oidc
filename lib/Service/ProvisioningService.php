@@ -9,6 +9,7 @@ namespace OCA\UserOIDC\Service;
 
 use InvalidArgumentException;
 use OC\Accounts\AccountManager;
+use OC\OCS\Provider;
 use OCA\UserOIDC\AppInfo\Application;
 use OCA\UserOIDC\Db\UserMapper;
 use OCA\UserOIDC\Event\AttributeMappedEvent;
@@ -227,6 +228,11 @@ class ProvisioningService {
 					'user' => null,
 					'userData' => $oidcGssUserData,
 				];
+			}
+
+			$newUsersRequireApproval = $this->providerService->getSetting($providerId, ProviderService::SETTING_NEW_USERS_REQUIRE_APPROVAL, '0') === '1';
+			if ($newUsersRequireApproval) {
+				$user->setEnabled(false);
 			}
 		}
 
