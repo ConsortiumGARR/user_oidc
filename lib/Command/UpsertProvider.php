@@ -159,6 +159,10 @@ class UpsertProvider extends Base {
 			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_MAPPING_GROUPS,
 			'description' => 'Attribute mapping of the groups',
 		],
+		'mapping-group-admin-for' => [
+			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_MAPPING_GROUP_ADMIN_FOR,
+			'description' => 'Attribute mapping for the "Group admin for" field',
+		],
 		'resolve-nested-claims' => [
 			'shortcut' => null,
 			'mode' => InputOption::VALUE_REQUIRED,
