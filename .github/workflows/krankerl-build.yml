@@ -15,16 +15,15 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: garr
+      - name: Get version from info.xml
+        id: getxml
+        uses: mavrosxristoforos/get-xml-info@1.0
+        with:
+          xml-file: 'appinfo/info.xml'
+          xpath: '//version'
 
-      - name: Read version from appinfo/info.xml
-        run: |
-          VERSION=$(xmllint --xpath 'string(//version)' appinfo/info.xml)
-          if [ -z "$VERSION" ]; then
-            echo "Version not found in appinfo/info.xml"
-            exit 1
-          fi
-          echo "Version: $VERSION"
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
+      - name: Show version
+        run: echo "Version=${{ steps.getxml.outputs.info }}"
 
       - name: Run build script
         run: |
@@ -37,8 +36,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.VERSION }}
-          name: Release ${{ env.VERSION }}
+          tag_name: v${{ steps.getxml.outputs.info }}
+          name: Release v${{ steps.getxml.outputs.info }}
           draft: false
           prerelease: false
           files: build/artifacts/user_oidc.tar.gz
