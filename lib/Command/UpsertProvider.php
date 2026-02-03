@@ -27,6 +27,10 @@ class UpsertProvider extends Base {
 			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_UNIQUE_UID,
 			'description' => 'Determines if unique user ids shall be used or not. 1 to enable, 0 to disable',
 		],
+		'new-users-require-approval' => [
+			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_NEW_USERS_REQUIRE_APPROVAL,
+			'description' => 'Require administrator approval for new users after first login. 1 to enable, 0 to disable (default)',
+		],
 		'check-bearer' => [
 			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_CHECK_BEARER,
 			'description' => 'Determines if Nextcloud API/WebDav calls should check the Bearer token against this provider or not. 1 to enable, 0 to disable (default when creating a new provider)',
@@ -151,9 +155,17 @@ class UpsertProvider extends Base {
 			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_RESTRICT_LOGIN_TO_GROUPS,
 			'description' => 'Restrict login for users that are not in any whitelisted groups. 1 to enable, 0 to disable (default)',
 		],
+		'group-forbid-login-without-group' => [
+			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_FORBID_LOGIN_WITHOUT_GROUP,
+			'description' => 'Forbid login for users that are not member of any group provided by the OIDC group claim. 1 to enable, 0 to disable (default)',
+		],
 		'mapping-groups' => [
 			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_MAPPING_GROUPS,
 			'description' => 'Attribute mapping of the groups',
+		],
+		'mapping-group-admin-for' => [
+			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_MAPPING_GROUP_ADMIN_FOR,
+			'description' => 'Attribute mapping for the "Group admin for" field',
 		],
 		'resolve-nested-claims' => [
 			'shortcut' => null,

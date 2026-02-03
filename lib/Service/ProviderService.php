@@ -26,12 +26,14 @@ class ProviderService {
 	public const SETTING_SEND_ID_TOKEN_HINT = 'sendIdTokenHint';
 	public const SETTING_BEARER_PROVISIONING = 'bearerProvisioning';
 	public const SETTING_UNIQUE_UID = 'uniqueUid';
+	public const SETTING_NEW_USERS_REQUIRE_APPROVAL = 'newUsersRequireApproval';
 	public const SETTING_MAPPING_UID = 'mappingUid';
 	public const SETTING_MAPPING_UID_DEFAULT = 'sub';
 	public const SETTING_MAPPING_DISPLAYNAME = 'mappingDisplayName';
 	public const SETTING_MAPPING_EMAIL = 'mappingEmail';
 	public const SETTING_MAPPING_QUOTA = 'mappingQuota';
 	public const SETTING_MAPPING_GROUPS = 'mappingGroups';
+	public const SETTING_MAPPING_GROUP_ADMIN_FOR = 'mappingGroupAdminFor';
 	public const SETTING_MAPPING_LANGUAGE = 'mappingLanguage';
 	public const SETTING_MAPPING_LOCALE = 'mappingLocale';
 	public const SETTING_MAPPING_ADDRESS = 'mappingAddress';
@@ -59,6 +61,7 @@ class ProviderService {
 	public const SETTING_GROUP_PROVISIONING = 'groupProvisioning';
 	public const SETTING_GROUP_WHITELIST_REGEX = 'groupWhitelistRegex';
 	public const SETTING_RESTRICT_LOGIN_TO_GROUPS = 'restrictLoginToGroups';
+	public const SETTING_FORBID_LOGIN_WITHOUT_GROUP = 'forbidLoginWithoutGroup';
 	public const SETTING_RESOLVE_NESTED_AND_FALLBACK_CLAIMS_MAPPING = 'nestedAndFallbackClaims';
 
 	public const BOOLEAN_SETTINGS_DEFAULT_VALUES = [
@@ -66,9 +69,11 @@ class ProviderService {
 		self::SETTING_PROVIDER_BASED_ID => false,
 		self::SETTING_BEARER_PROVISIONING => false,
 		self::SETTING_UNIQUE_UID => true,
+		self::SETTING_NEW_USERS_REQUIRE_APPROVAL => false,
 		self::SETTING_CHECK_BEARER => false,
 		self::SETTING_SEND_ID_TOKEN_HINT => false,
 		self::SETTING_RESTRICT_LOGIN_TO_GROUPS => false,
+		self::SETTING_FORBID_LOGIN_WITHOUT_GROUP => false,
 		self::SETTING_RESOLVE_NESTED_AND_FALLBACK_CLAIMS_MAPPING => false,
 	];
 
@@ -162,6 +167,7 @@ class ProviderService {
 			self::SETTING_MAPPING_QUOTA,
 			self::SETTING_MAPPING_UID,
 			self::SETTING_MAPPING_GROUPS,
+			self::SETTING_MAPPING_GROUP_ADMIN_FOR,
 			self::SETTING_MAPPING_LANGUAGE,
 			self::SETTING_MAPPING_LOCALE,
 			self::SETTING_MAPPING_ADDRESS,
@@ -183,6 +189,7 @@ class ProviderService {
 			self::SETTING_MAPPING_PRONOUNS,
 			self::SETTING_MAPPING_BIRTHDATE,
 			self::SETTING_UNIQUE_UID,
+			self::SETTING_NEW_USERS_REQUIRE_APPROVAL,
 			self::SETTING_CHECK_BEARER,
 			self::SETTING_SEND_ID_TOKEN_HINT,
 			self::SETTING_BEARER_PROVISIONING,
@@ -191,6 +198,7 @@ class ProviderService {
 			self::SETTING_GROUP_PROVISIONING,
 			self::SETTING_GROUP_WHITELIST_REGEX,
 			self::SETTING_RESTRICT_LOGIN_TO_GROUPS,
+			self::SETTING_FORBID_LOGIN_WITHOUT_GROUP,
 			self::SETTING_RESOLVE_NESTED_AND_FALLBACK_CLAIMS_MAPPING,
 		];
 	}
