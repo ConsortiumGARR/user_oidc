@@ -1,0 +1,47 @@
+name: Build and publish with krankerl
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: garr
+
+      - name: Read version from appinfo/info.xml
+        run: |
+          VERSION=$(xmllint --xpath 'string(//version)' appinfo/info.xml)
+          if [ -z "$VERSION" ]; then
+            echo "Version not found in appinfo/info.xml"
+            exit 1
+          fi
+          echo "Version: $VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Run build script
+        run: |
+          ./build_with_docker.sh krankerl
+
+      - name: Verify artifact
+        run: |
+          ls -lh build/artifacts/user_oidc.tar.gz
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: Release ${{ env.VERSION }}
+          draft: false
+          prerelease: false
+          files: build/artifacts/user_oidc.tar.gz
+          overwrite_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
