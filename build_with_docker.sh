@@ -23,7 +23,7 @@ case "$ACTION" in
             --mount type=bind,source="$(pwd)"/build,target=/opt/build \
             ghcr.io/rizlas/krankerl-builder:latest \
             https://github.com/ConsortiumGARR/user_oidc.git \
-            custom-garr
+            garr
         ;;
     all|"")
         docker run --rm -v "$(pwd):/app" -w /app composer:2 composer install
@@ -34,7 +34,7 @@ case "$ACTION" in
             --mount type=bind,source="$(pwd)"/build,target=/opt/build \
             ghcr.io/rizlas/krankerl-builder:latest \
             https://github.com/ConsortiumGARR/user_oidc.git \
-            custom-garr
+            garr
         ;;
     *)
         echo "Usage: $0 [composer|node|build|krankerl|all]"
