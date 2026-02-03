@@ -9,6 +9,7 @@ namespace OCA\UserOIDC\Service;
 
 use InvalidArgumentException;
 use OC\Accounts\AccountManager;
+use OC\OCS\Provider;
 use OCA\UserOIDC\AppInfo\Application;
 use OCA\UserOIDC\Db\UserMapper;
 use OCA\UserOIDC\Event\AttributeMappedEvent;
@@ -22,6 +23,7 @@ use OCP\Http\Client\IClientService;
 use OCP\IAvatarManager;
 use OCP\IConfig;
 use OCP\IGroupManager;
+use OCP\Group\ISubAdmin;
 use OCP\Image;
 use OCP\ISession;
 use OCP\IUser;
@@ -48,6 +50,7 @@ class ProvisioningService {
 		private IConfig $config,
 		private ISession $session,
 		private IFactory $l10nFactory,
+		private ISubAdmin $subAdminManager,
 	) {
 	}
 
@@ -228,6 +231,11 @@ class ProvisioningService {
 					'userData' => $oidcGssUserData,
 				];
 			}
+
+			$newUsersRequireApproval = $this->providerService->getSetting($providerId, ProviderService::SETTING_NEW_USERS_REQUIRE_APPROVAL, '0') === '1';
+			if ($newUsersRequireApproval) {
+				$user->setEnabled(false);
+			}
 		}
 
 		$account = $this->accountManager->getAccount($user);
@@ -304,6 +312,8 @@ class ProvisioningService {
 				$groupsAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_GROUPS, 'groups');
 				$oidcGssUserData[$groupsAttribute] = $groupIds;
 			}
+
+			$this->provisionUserAdminGroups($user, $providerId, $idTokenPayload);
 		}
 
 		$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_LOCALE, $idTokenPayload, $locale);
@@ -516,15 +526,15 @@ class ProvisioningService {
 		}
 	}
 
-	public function getSyncGroupsOfToken(int $providerId, object $idTokenPayload) {
-		$groupsAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_GROUPS, 'groups');
+	private function getSyncGroupsFromClaim(int $providerId, object $idTokenPayload, string $mappingSettingKey, string $defaultClaimName) {
+		$groupsAttribute = $this->providerService->getSetting($providerId, $mappingSettingKey, $defaultClaimName);
 		$groupsData = $this->getClaimValues($idTokenPayload, $groupsAttribute, $providerId);
 
 		$groupsWhitelistRegex = $this->getGroupWhitelistRegex($providerId);
 
-		$event = new AttributeMappedEvent(ProviderService::SETTING_MAPPING_GROUPS, $idTokenPayload, json_encode($groupsData));
+		$event = new AttributeMappedEvent($mappingSettingKey, $idTokenPayload, json_encode($groupsData));
 		$this->eventDispatcher->dispatchTyped($event);
-		$this->logger->debug('Group mapping event dispatched');
+		$this->logger->debug($mappingSettingKey . ' mapping event dispatched');
 
 		if ($event->hasValue() && $event->getValue() !== null) {
 			// casted to null if empty value
@@ -576,6 +586,10 @@ class ProvisioningService {
 		return null;
 	}
 
+	public function getSyncGroupsOfToken(int $providerId, object $idTokenPayload): ?array {
+		return $this->getSyncGroupsFromClaim($providerId, $idTokenPayload, ProviderService::SETTING_MAPPING_GROUPS, 'groups');
+	}
+
 	public function provisionUserGroups(IUser $user, int $providerId, object $idTokenPayload): ?array {
 		$groupsWhitelistRegex = $this->getGroupWhitelistRegex($providerId);
 
@@ -622,4 +636,66 @@ class ProvisioningService {
 
 		return $regex;
 	}
+
+	public function getSyncAdminGroupsOfToken(int $providerId, object $idTokenPayload): ?array {
+		return $this->getSyncGroupsFromClaim($providerId, $idTokenPayload, ProviderService::SETTING_MAPPING_GROUP_ADMIN_FOR, 'group_admin_for');
+	}
+
+	private function provisionUserAdminGroups(IUser $user, int $providerId, object $idTokenPayload): void {
+		$adminGroups = $this->getSyncAdminGroupsOfToken($providerId, $idTokenPayload);
+		if ($adminGroups === null) {
+			return;
+		}
+
+		$currentSubAdminGroups = $this->subAdminManager->getSubAdminsGroups($user);
+
+		foreach ($currentSubAdminGroups as $group) {
+			if (!in_array($group->getGID(), $adminGroups))
+				$this->subAdminManager->deleteSubAdmin($user, $group);
+		}
+
+		foreach ($adminGroups as $group) {
+			$group = $this->groupManager->get($group->gid);
+			if ($group)
+				$this->subAdminManager->createSubAdmin($user, $group);
+		}
+	}
+
+	public function hasGroups(int $providerId, object $idTokenPayload): bool {
+		$groupsAttribute = $this->providerService->getSetting( $providerId, ProviderService::SETTING_MAPPING_GROUPS, 'groups');
+
+		$groupsData = $this->getClaimValues($idTokenPayload, $groupsAttribute, $providerId);
+
+		// If the claim is null or empty, there are no groups.
+		if (empty($groupsData)) {
+			return false;
+		}
+
+		// If it's an array, checks that it has at least one element
+		// Example: $groupsData = ['group1', 'group2', ...];
+		if (is_array($groupsData) && count($groupsData) > 0) {
+			return true;
+		}
+
+		// If it's a comma-separated string
+		// Example: $groupsData = "group1,group2,...";
+		if (is_string($groupsData)) {
+			$groups = array_filter(array_map('trim', explode(',', $groupsData)));
+			return count($groups) > 0;
+		}
+
+		// If it's an object (e.g. [{gid:"1"}, {gid:"2"}])
+		// Example:
+		// $groupsData = [
+		//   {gid: "1"},
+		//   {gid: "2"},
+		//   ...
+		// ];
+		if (is_object($groupsData)) {
+			return !empty(get_object_vars($groupsData));
+		}
+
+		return false;
+	}
+
 }
