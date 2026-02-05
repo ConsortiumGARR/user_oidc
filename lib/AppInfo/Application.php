@@ -28,6 +28,7 @@ use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
+use OCP\IAppConfig;
 use OCP\IConfig;
 use OCP\IL10N;
 use OCP\IRequest;
@@ -35,6 +36,8 @@ use OCP\IURLGenerator;
 use OCP\IUserManager;
 use OCP\IUserSession;
 use Throwable;
+use OCA\UserOIDC\AlternativeLogin\OIDCLogin;
+use OCA\UserOIDC\AlternativeLogin\DefaultLoginShow;
 
 class Application extends App implements IBootstrap {
 	public const APP_ID = 'user_oidc';
@@ -69,6 +72,15 @@ class Application extends App implements IBootstrap {
 
 		if (class_exists(\OCP\Authentication\Events\TokenInvalidatedEvent::class)) {
 			$context->registerEventListener(\OCP\Authentication\Events\TokenInvalidatedEvent::class, TokenInvalidatedListener::class);
+		}
+
+		$context->registerAlternativeLogin(OIDCLogin::class);
+
+		$appConfig = $this->getContainer()->get(IAppConfig::class);
+		/** @var IAppConfig $appConfig */
+		$hideDefaultLogin = $appConfig->getValueString(self::APP_ID, 'hide_default_login', '0', lazy: true) === '1';
+		if ($hideDefaultLogin) {
+			$context->registerAlternativeLogin(DefaultLoginShow::class);
 		}
 	}
 
@@ -122,13 +134,13 @@ class Application extends App implements IBootstrap {
 		$providers = $this->getCachedProviders($providerMapper);
 		$customLoginLabel = $config->getSystemValue('user_oidc', [])['login_label'] ?? '';
 		foreach ($providers as $provider) {
-			// FIXME: Move to IAlternativeLogin but requires boot due to db connection
-			OC_App::registerLogIn([
-				'name' => $customLoginLabel
-					? preg_replace('/{name}/', $provider->getIdentifier(), $customLoginLabel)
-					: $l10n->t('Login with %1s', [$provider->getIdentifier()]),
-				'href' => $urlGenerator->linkToRoute(self::APP_ID . '.login.login', ['providerId' => $provider->getId(), 'redirectUrl' => $absoluteRedirectUrl]),
+			$label = !empty($customLoginLabel) ? $customLoginLabel : $l10n->t('Log in with %s', $provider->getIdentifier());
+			$loginUrl = $urlGenerator->linkToRoute(self::APP_ID . '.login.login', [
+				'providerId' => $provider->getId(),
+				'redirectUrl' => $absoluteRedirectUrl
 			]);
+
+			OIDCLogin::addLogin($label, $loginUrl, '');
 		}
 
 		/** @var ID4MeService $id4meService */
