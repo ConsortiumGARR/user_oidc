@@ -182,6 +182,9 @@ class SettingsController extends Controller {
 			if ($key === 'store_login_token' && is_bool($value)) {
 				$this->appConfig->setValueString(Application::APP_ID, 'store_login_token', $value ? '1' : '0', lazy: true);
 			}
+			if ($key === 'hide_default_login' && is_bool($value)) {
+				$this->appConfig->setValueString(Application::APP_ID, 'hide_default_login', $value ? '1' : '0', lazy: true);
+			}
 		}
 		return new JSONResponse([]);
 	}
