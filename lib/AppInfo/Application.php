@@ -23,6 +23,7 @@ use OCA\UserOIDC\Listener\TokenInvalidatedListener;
 use OCA\UserOIDC\Service\ID4MeService;
 use OCA\UserOIDC\Service\SettingsService;
 use OCA\UserOIDC\Service\TokenService;
+use OCA\UserOIDC\Service\ProviderService;
 use OCA\UserOIDC\User\Backend;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
@@ -74,7 +75,13 @@ class Application extends App implements IBootstrap {
 			$context->registerEventListener(\OCP\Authentication\Events\TokenInvalidatedEvent::class, TokenInvalidatedListener::class);
 		}
 
-		$context->registerAlternativeLogin(OIDCLogin::class);
+		// Register OIDCLogin once per each provider
+		$providerMapper = $this->getContainer()->get(ProviderMapper::class);
+		$providers = $providerMapper->getProviders();
+
+		foreach ($providers as $provider) {
+			$context->registerAlternativeLogin(OIDCLogin::class);
+		}
 
 		$appConfig = $this->getContainer()->get(IAppConfig::class);
 		/** @var IAppConfig $appConfig */
@@ -127,7 +134,7 @@ class Application extends App implements IBootstrap {
 	}
 
 	private function registerLogin(
-		IRequest $request, IL10N $l10n, IURLGenerator $urlGenerator, IConfig $config, ProviderMapper $providerMapper,
+		IRequest $request, IL10N $l10n, IURLGenerator $urlGenerator, IConfig $config, ProviderMapper $providerMapper, ProviderService $providerService
 	): void {
 		$redirectUrl = $request->getParam('redirect_url');
 		$absoluteRedirectUrl = !empty($redirectUrl) ? $urlGenerator->getAbsoluteURL($redirectUrl) : $redirectUrl;
@@ -140,7 +147,25 @@ class Application extends App implements IBootstrap {
 				'redirectUrl' => $absoluteRedirectUrl
 			]);
 
-			OIDCLogin::addLogin($label, $loginUrl, '');
+			$cssClass = 'oidc-provider-' . $provider->getId();
+
+			$iconUrl = $providerService->getSetting(
+				$provider->getId(),
+				ProviderService::SETTING_APPEARANCE_ICON
+			);
+
+			$buttonColor = $providerService->getSetting(
+				$provider->getId(),
+				ProviderService::SETTING_APPEARANCE_BUTTON_BACKGROUND_COLOR
+			);
+
+			OIDCLogin::addLogin(
+				$label,
+				$loginUrl,
+				$cssClass,
+				$iconUrl ?: null,
+				$buttonColor ?: null
+			);
 		}
 
 		/** @var ID4MeService $id4meService */
