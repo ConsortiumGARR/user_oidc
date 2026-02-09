@@ -58,6 +58,9 @@ class ProviderService {
 	public const SETTING_RESTRICT_LOGIN_TO_GROUPS = 'restrictLoginToGroups';
 	public const SETTING_FORBID_LOGIN_WITHOUT_GROUP = 'forbidLoginWithoutGroup';
 	public const SETTING_RESOLVE_NESTED_AND_FALLBACK_CLAIMS_MAPPING = 'nestedAndFallbackClaims';
+	public const SETTING_APPEARANCE_ICON = 'appearanceIcon';
+	public const SETTING_APPEARANCE_BUTTON_BACKGROUND_COLOR = 'appearanceButtonBackgroundColor';
+
 
 	public const BOOLEAN_SETTINGS_DEFAULT_VALUES = [
 		self::SETTING_GROUP_PROVISIONING => false,
@@ -185,6 +188,8 @@ class ProviderService {
 			self::SETTING_RESTRICT_LOGIN_TO_GROUPS,
 			self::SETTING_FORBID_LOGIN_WITHOUT_GROUP,
 			self::SETTING_RESOLVE_NESTED_AND_FALLBACK_CLAIMS_MAPPING,
+			self::SETTING_APPEARANCE_ICON,
+			self::SETTING_APPEARANCE_BUTTON_BACKGROUND_COLOR,
 		];
 	}
 
