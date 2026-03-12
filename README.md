@@ -14,7 +14,6 @@ Fetch tags from upstream:
 
 Only the first time, add upstream:
 
-
 ```bash
 git remote add upstream https://github.com/nextcloud/user_oidc.git
 git remote -v
@@ -31,10 +30,16 @@ Work only on the dedicated branch called `garr`.
 
 When a new tag appears, rebase it to build the new version on our custom branch as well:
 
-TBValidate...
+- Sync the fork without discarding commit on main branch
 
 ```bash
-git fetch upstream --tags
+git checkout main
+git pull main
+```
+
+- Rebase the tag into the custom branch
+
+```bash
 git checkout garr
 git rebase <tag_name>
 ```
