@@ -4,8 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-<<<<<<< HEAD
-    "content-hash": "d04dc4373433d9ac88a4fd120a014533",
+    "content-hash": "48c1080bed6d4067fc835be4bda0c28a",
     "packages": [
         {
             "name": "bamarni/composer-bin-plugin",
@@ -19,22 +18,6 @@
                 "type": "zip",
                 "url": "https://api.github.com/repos/bamarni/composer-bin-plugin/zipball/641d0663f5ac270b1aeec4337b7856f76204df47",
                 "reference": "641d0663f5ac270b1aeec4337b7856f76204df47",
-=======
-    "content-hash": "abddaa16d7a6997d026c295737973e7d",
-    "packages": [
-        {
-            "name": "bamarni/composer-bin-plugin",
-            "version": "1.9.0",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/bamarni/composer-bin-plugin.git",
-                "reference": "f6af6be0534fad47b38b34311e7d6148a67b5587"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/bamarni/composer-bin-plugin/zipball/f6af6be0534fad47b38b34311e7d6148a67b5587",
-                "reference": "f6af6be0534fad47b38b34311e7d6148a67b5587",
->>>>>>> e3b747a (doc: readme)
                 "shasum": ""
             },
             "require": {
@@ -42,11 +25,7 @@
                 "php": "^7.2.5 || ^8.0"
             },
             "require-dev": {
-<<<<<<< HEAD
                 "composer/composer": "^2.2.26",
-=======
-                "composer/composer": "^2.6",
->>>>>>> e3b747a (doc: readme)
                 "ext-json": "*",
                 "phpstan/extension-installer": "^1.1",
                 "phpstan/phpstan": "^1.8 || ^2.0",
@@ -80,7 +59,6 @@
             ],
             "support": {
                 "issues": "https://github.com/bamarni/composer-bin-plugin/issues",
-<<<<<<< HEAD
                 "source": "https://github.com/bamarni/composer-bin-plugin/tree/1.9.1"
             },
             "time": "2026-02-04T10:18:12+00:00"
@@ -97,24 +75,6 @@
                 "type": "zip",
                 "url": "https://api.github.com/repos/firebase/php-jwt/zipball/28aa0694bcfdfa5e2959c394d5a1ee7a5083629e",
                 "reference": "28aa0694bcfdfa5e2959c394d5a1ee7a5083629e",
-=======
-                "source": "https://github.com/bamarni/composer-bin-plugin/tree/1.9.0"
-            },
-            "time": "2026-01-29T23:07:38+00:00"
-        },
-        {
-            "name": "firebase/php-jwt",
-            "version": "v7.0.2",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/firebase/php-jwt.git",
-                "reference": "5645b43af647b6947daac1d0f659dd1fbe8d3b65"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/firebase/php-jwt/zipball/5645b43af647b6947daac1d0f659dd1fbe8d3b65",
-                "reference": "5645b43af647b6947daac1d0f659dd1fbe8d3b65",
->>>>>>> e3b747a (doc: readme)
                 "shasum": ""
             },
             "require": {
@@ -162,15 +122,9 @@
             ],
             "support": {
                 "issues": "https://github.com/firebase/php-jwt/issues",
-<<<<<<< HEAD
                 "source": "https://github.com/firebase/php-jwt/tree/v7.0.3"
             },
             "time": "2026-02-25T22:16:40+00:00"
-=======
-                "source": "https://github.com/firebase/php-jwt/tree/v7.0.2"
-            },
-            "time": "2025-12-16T22:17:28+00:00"
->>>>>>> e3b747a (doc: readme)
         },
         {
             "name": "id4me/id4me-rp",
@@ -330,7 +284,6 @@
     ],
     "packages-dev": [
         {
-<<<<<<< HEAD
             "name": "adhocore/cli",
             "version": "v1.9.4",
             "source": {
@@ -357,7 +310,53 @@
                 ],
                 "psr-4": {
                     "Ahc\\Cli\\": "src/"
-=======
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Jitendra Adhikari",
+                    "email": "jiten.adhikary@gmail.com"
+                }
+            ],
+            "description": "Command line interface library for PHP",
+            "keywords": [
+                "argument-parser",
+                "argv-parser",
+                "cli",
+                "cli-action",
+                "cli-app",
+                "cli-color",
+                "cli-option",
+                "cli-writer",
+                "command",
+                "console",
+                "console-app",
+                "php-cli",
+                "php8",
+                "stream-input",
+                "stream-output"
+            ],
+            "support": {
+                "issues": "https://github.com/adhocore/php-cli/issues",
+                "source": "https://github.com/adhocore/php-cli/tree/v1.9.4"
+            },
+            "funding": [
+                {
+                    "url": "https://paypal.me/ji10",
+                    "type": "custom"
+                },
+                {
+                    "url": "https://github.com/adhocore",
+                    "type": "github"
+                }
+            ],
+            "time": "2025-05-11T13:23:54+00:00"
+        },
+        {
             "name": "guzzlehttp/guzzle",
             "version": "7.10.0",
             "source": {
@@ -408,7 +407,6 @@
                 ],
                 "psr-4": {
                     "GuzzleHttp\\": "src/"
->>>>>>> e3b747a (doc: readme)
                 }
             },
             "notification-url": "https://packagist.org/downloads/",
@@ -417,45 +415,6 @@
             ],
             "authors": [
                 {
-<<<<<<< HEAD
-                    "name": "Jitendra Adhikari",
-                    "email": "jiten.adhikary@gmail.com"
-                }
-            ],
-            "description": "Command line interface library for PHP",
-            "keywords": [
-                "argument-parser",
-                "argv-parser",
-                "cli",
-                "cli-action",
-                "cli-app",
-                "cli-color",
-                "cli-option",
-                "cli-writer",
-                "command",
-                "console",
-                "console-app",
-                "php-cli",
-                "php8",
-                "stream-input",
-                "stream-output"
-            ],
-            "support": {
-                "issues": "https://github.com/adhocore/php-cli/issues",
-                "source": "https://github.com/adhocore/php-cli/tree/v1.9.4"
-            },
-            "funding": [
-                {
-                    "url": "https://paypal.me/ji10",
-                    "type": "custom"
-                },
-                {
-                    "url": "https://github.com/adhocore",
-                    "type": "github"
-                }
-            ],
-            "time": "2025-05-11T13:23:54+00:00"
-=======
                     "name": "Graham Campbell",
                     "email": "hello@gjcampbell.co.uk",
                     "homepage": "https://github.com/GrahamCampbell"
@@ -608,16 +567,16 @@
         },
         {
             "name": "guzzlehttp/psr7",
-            "version": "2.8.0",
+            "version": "2.9.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/guzzle/psr7.git",
-                "reference": "21dc724a0583619cd1652f673303492272778051"
+                "reference": "7d0ed42f28e42d61352a7a79de682e5e67fec884"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/guzzle/psr7/zipball/21dc724a0583619cd1652f673303492272778051",
-                "reference": "21dc724a0583619cd1652f673303492272778051",
+                "url": "https://api.github.com/repos/guzzle/psr7/zipball/7d0ed42f28e42d61352a7a79de682e5e67fec884",
+                "reference": "7d0ed42f28e42d61352a7a79de682e5e67fec884",
                 "shasum": ""
             },
             "require": {
@@ -633,6 +592,7 @@
             "require-dev": {
                 "bamarni/composer-bin-plugin": "^1.8.2",
                 "http-interop/http-factory-tests": "0.9.0",
+                "jshttp/mime-db": "1.54.0.1",
                 "phpunit/phpunit": "^8.5.44 || ^9.6.25"
             },
             "suggest": {
@@ -704,7 +664,7 @@
             ],
             "support": {
                 "issues": "https://github.com/guzzle/psr7/issues",
-                "source": "https://github.com/guzzle/psr7/tree/2.8.0"
+                "source": "https://github.com/guzzle/psr7/tree/2.9.0"
             },
             "funding": [
                 {
@@ -720,21 +680,20 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-08-23T21:21:41+00:00"
->>>>>>> e3b747a (doc: readme)
+            "time": "2026-03-10T16:41:02+00:00"
         },
         {
             "name": "kubawerlos/php-cs-fixer-custom-fixers",
-            "version": "v3.36.0",
+            "version": "v3.36.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/kubawerlos/php-cs-fixer-custom-fixers.git",
-                "reference": "e1f97f6463f0b2a22e0dd320948a04132ff9c501"
+                "reference": "ec9776e80f5ea9bf0d8ec16d662e431bfab19a24"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/kubawerlos/php-cs-fixer-custom-fixers/zipball/e1f97f6463f0b2a22e0dd320948a04132ff9c501",
-                "reference": "e1f97f6463f0b2a22e0dd320948a04132ff9c501",
+                "url": "https://api.github.com/repos/kubawerlos/php-cs-fixer-custom-fixers/zipball/ec9776e80f5ea9bf0d8ec16d662e431bfab19a24",
+                "reference": "ec9776e80f5ea9bf0d8ec16d662e431bfab19a24",
                 "shasum": ""
             },
             "require": {
@@ -765,7 +724,7 @@
             "description": "A set of custom fixers for PHP CS Fixer",
             "support": {
                 "issues": "https://github.com/kubawerlos/php-cs-fixer-custom-fixers/issues",
-                "source": "https://github.com/kubawerlos/php-cs-fixer-custom-fixers/tree/v3.36.0"
+                "source": "https://github.com/kubawerlos/php-cs-fixer-custom-fixers/tree/v3.36.1"
             },
             "funding": [
                 {
@@ -773,7 +732,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-01-31T07:02:11+00:00"
+            "time": "2026-03-07T11:35:13+00:00"
         },
         {
             "name": "myclabs/deep-copy",
@@ -886,12 +845,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/nextcloud-deps/ocp.git",
-                "reference": "b85f287380a30008cfc5264e8d56cbe6c8b58424"
+                "reference": "6e97cdf621ae674246fec9efc7d12c9130346a60"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nextcloud-deps/ocp/zipball/b85f287380a30008cfc5264e8d56cbe6c8b58424",
-                "reference": "b85f287380a30008cfc5264e8d56cbe6c8b58424",
+                "url": "https://api.github.com/repos/nextcloud-deps/ocp/zipball/6e97cdf621ae674246fec9efc7d12c9130346a60",
+                "reference": "6e97cdf621ae674246fec9efc7d12c9130346a60",
                 "shasum": ""
             },
             "require": {
@@ -922,7 +881,7 @@
                 "issues": "https://github.com/nextcloud-deps/ocp/issues",
                 "source": "https://github.com/nextcloud-deps/ocp/tree/stable29"
             },
-            "time": "2026-02-11T01:18:39+00:00"
+            "time": "2026-02-20T01:07:13+00:00"
         },
         {
             "name": "nextcloud/openapi-extractor",
@@ -1149,29 +1108,16 @@
         },
         {
             "name": "php-cs-fixer/shim",
-<<<<<<< HEAD
-            "version": "v3.94.1",
+            "version": "v3.94.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/PHP-CS-Fixer/shim.git",
-                "reference": "886842d646b54f475bd91cd812d1698e3e3bc57b"
+                "reference": "80fd29f44a736136a2f05bae5464816a444b91d1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/PHP-CS-Fixer/shim/zipball/886842d646b54f475bd91cd812d1698e3e3bc57b",
-                "reference": "886842d646b54f475bd91cd812d1698e3e3bc57b",
-=======
-            "version": "v3.93.1",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/PHP-CS-Fixer/shim.git",
-                "reference": "3a9db22e8f01762fddd3a85b998053294c5a3629"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/PHP-CS-Fixer/shim/zipball/3a9db22e8f01762fddd3a85b998053294c5a3629",
-                "reference": "3a9db22e8f01762fddd3a85b998053294c5a3629",
->>>>>>> e3b747a (doc: readme)
+                "url": "https://api.github.com/repos/PHP-CS-Fixer/shim/zipball/80fd29f44a736136a2f05bae5464816a444b91d1",
+                "reference": "80fd29f44a736136a2f05bae5464816a444b91d1",
                 "shasum": ""
             },
             "require": {
@@ -1208,15 +1154,9 @@
             "description": "A tool to automatically fix PHP code style",
             "support": {
                 "issues": "https://github.com/PHP-CS-Fixer/shim/issues",
-<<<<<<< HEAD
-                "source": "https://github.com/PHP-CS-Fixer/shim/tree/v3.94.1"
+                "source": "https://github.com/PHP-CS-Fixer/shim/tree/v3.94.2"
             },
-            "time": "2026-02-18T12:25:03+00:00"
-=======
-                "source": "https://github.com/PHP-CS-Fixer/shim/tree/v3.93.1"
-            },
-            "time": "2026-01-28T23:51:14+00:00"
->>>>>>> e3b747a (doc: readme)
+            "time": "2026-02-20T16:14:17+00:00"
         },
         {
             "name": "phpstan/phpdoc-parser",
@@ -1614,7 +1554,6 @@
         },
         {
             "name": "phpunit/phpunit",
-<<<<<<< HEAD
             "version": "11.5.55",
             "source": {
                 "type": "git",
@@ -1625,18 +1564,6 @@
                 "type": "zip",
                 "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/adc7262fccc12de2b30f12a8aa0b33775d814f00",
                 "reference": "adc7262fccc12de2b30f12a8aa0b33775d814f00",
-=======
-            "version": "10.5.63",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/sebastianbergmann/phpunit.git",
-                "reference": "33198268dad71e926626b618f3ec3966661e4d90"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/33198268dad71e926626b618f3ec3966661e4d90",
-                "reference": "33198268dad71e926626b618f3ec3966661e4d90",
->>>>>>> e3b747a (doc: readme)
                 "shasum": ""
             },
             "require": {
@@ -1649,7 +1576,6 @@
                 "myclabs/deep-copy": "^1.13.4",
                 "phar-io/manifest": "^2.0.4",
                 "phar-io/version": "^3.2.1",
-<<<<<<< HEAD
                 "php": ">=8.2",
                 "phpunit/php-code-coverage": "^11.0.12",
                 "phpunit/php-file-iterator": "^5.1.1",
@@ -1668,25 +1594,6 @@
                 "sebastian/type": "^5.1.3",
                 "sebastian/version": "^5.0.2",
                 "staabm/side-effects-detector": "^1.0.5"
-=======
-                "php": ">=8.1",
-                "phpunit/php-code-coverage": "^10.1.16",
-                "phpunit/php-file-iterator": "^4.1.0",
-                "phpunit/php-invoker": "^4.0.0",
-                "phpunit/php-text-template": "^3.0.1",
-                "phpunit/php-timer": "^6.0.0",
-                "sebastian/cli-parser": "^2.0.1",
-                "sebastian/code-unit": "^2.0.0",
-                "sebastian/comparator": "^5.0.5",
-                "sebastian/diff": "^5.1.1",
-                "sebastian/environment": "^6.1.0",
-                "sebastian/exporter": "^5.1.4",
-                "sebastian/global-state": "^6.0.2",
-                "sebastian/object-enumerator": "^5.0.0",
-                "sebastian/recursion-context": "^5.0.1",
-                "sebastian/type": "^4.0.0",
-                "sebastian/version": "^4.0.1"
->>>>>>> e3b747a (doc: readme)
             },
             "suggest": {
                 "ext-soap": "To be able to generate mocks based on WSDL files"
@@ -1729,11 +1636,7 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/phpunit/issues",
                 "security": "https://github.com/sebastianbergmann/phpunit/security/policy",
-<<<<<<< HEAD
                 "source": "https://github.com/sebastianbergmann/phpunit/tree/11.5.55"
-=======
-                "source": "https://github.com/sebastianbergmann/phpunit/tree/10.5.63"
->>>>>>> e3b747a (doc: readme)
             },
             "funding": [
                 {
@@ -1757,23 +1660,20 @@
                     "type": "tidelift"
                 }
             ],
-<<<<<<< HEAD
             "time": "2026-02-18T12:37:06+00:00"
-=======
-            "time": "2026-01-27T05:48:37+00:00"
         },
         {
             "name": "psalm/phar",
-            "version": "6.15.0",
+            "version": "6.15.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/psalm/phar.git",
-                "reference": "a787db2c1b9c4012c3a42a8ca753b4ddda7eaa5a"
+                "reference": "636e7017196934b4e2a0da6f7a3eff8faf84c9ce"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/psalm/phar/zipball/a787db2c1b9c4012c3a42a8ca753b4ddda7eaa5a",
-                "reference": "a787db2c1b9c4012c3a42a8ca753b4ddda7eaa5a",
+                "url": "https://api.github.com/repos/psalm/phar/zipball/636e7017196934b4e2a0da6f7a3eff8faf84c9ce",
+                "reference": "636e7017196934b4e2a0da6f7a3eff8faf84c9ce",
                 "shasum": ""
             },
             "require": {
@@ -1793,10 +1693,9 @@
             "description": "Composer-based Psalm Phar",
             "support": {
                 "issues": "https://github.com/psalm/phar/issues",
-                "source": "https://github.com/psalm/phar/tree/6.15.0"
+                "source": "https://github.com/psalm/phar/tree/6.15.1"
             },
-            "time": "2026-01-30T14:20:13+00:00"
->>>>>>> e3b747a (doc: readme)
+            "time": "2026-02-08T08:29:24+00:00"
         },
         {
             "name": "psr/clock",
@@ -2375,7 +2274,6 @@
         },
         {
             "name": "sebastian/comparator",
-<<<<<<< HEAD
             "version": "6.3.3",
             "source": {
                 "type": "git",
@@ -2386,18 +2284,6 @@
                 "type": "zip",
                 "url": "https://api.github.com/repos/sebastianbergmann/comparator/zipball/2c95e1e86cb8dd41beb8d502057d1081ccc8eca9",
                 "reference": "2c95e1e86cb8dd41beb8d502057d1081ccc8eca9",
-=======
-            "version": "5.0.5",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/sebastianbergmann/comparator.git",
-                "reference": "55dfef806eb7dfeb6e7a6935601fef866f8ca48d"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/comparator/zipball/55dfef806eb7dfeb6e7a6935601fef866f8ca48d",
-                "reference": "55dfef806eb7dfeb6e7a6935601fef866f8ca48d",
->>>>>>> e3b747a (doc: readme)
                 "shasum": ""
             },
             "require": {
@@ -2456,11 +2342,7 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/comparator/issues",
                 "security": "https://github.com/sebastianbergmann/comparator/security/policy",
-<<<<<<< HEAD
                 "source": "https://github.com/sebastianbergmann/comparator/tree/6.3.3"
-=======
-                "source": "https://github.com/sebastianbergmann/comparator/tree/5.0.5"
->>>>>>> e3b747a (doc: readme)
             },
             "funding": [
                 {
@@ -2480,11 +2362,7 @@
                     "type": "tidelift"
                 }
             ],
-<<<<<<< HEAD
             "time": "2026-01-24T09:26:40+00:00"
-=======
-            "time": "2026-01-24T09:25:16+00:00"
->>>>>>> e3b747a (doc: readme)
         },
         {
             "name": "sebastian/complexity",
@@ -3211,10 +3089,58 @@
             "time": "2024-10-09T05:16:32+00:00"
         },
         {
-<<<<<<< HEAD
             "name": "staabm/side-effects-detector",
             "version": "1.0.5",
-=======
+            "source": {
+                "type": "git",
+                "url": "https://github.com/staabm/side-effects-detector.git",
+                "reference": "d8334211a140ce329c13726d4a715adbddd0a163"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/staabm/side-effects-detector/zipball/d8334211a140ce329c13726d4a715adbddd0a163",
+                "reference": "d8334211a140ce329c13726d4a715adbddd0a163",
+                "shasum": ""
+            },
+            "require": {
+                "ext-tokenizer": "*",
+                "php": "^7.4 || ^8.0"
+            },
+            "require-dev": {
+                "phpstan/extension-installer": "^1.4.3",
+                "phpstan/phpstan": "^1.12.6",
+                "phpunit/phpunit": "^9.6.21",
+                "symfony/var-dumper": "^5.4.43",
+                "tomasvotruba/type-coverage": "1.0.0",
+                "tomasvotruba/unused-public": "1.0.0"
+            },
+            "type": "library",
+            "autoload": {
+                "classmap": [
+                    "lib/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "A static analysis tool to detect side effects in PHP code",
+            "keywords": [
+                "static analysis"
+            ],
+            "support": {
+                "issues": "https://github.com/staabm/side-effects-detector/issues",
+                "source": "https://github.com/staabm/side-effects-detector/tree/1.0.5"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/staabm",
+                    "type": "github"
+                }
+            ],
+            "time": "2024-10-20T05:08:20+00:00"
+        },
+        {
             "name": "symfony/deprecation-contracts",
             "version": "v3.6.0",
             "source": {
@@ -3280,59 +3206,6 @@
                 }
             ],
             "time": "2024-09-25T14:21:43+00:00"
-        },
-        {
-            "name": "symfony/event-dispatcher",
-            "version": "v4.4.44",
->>>>>>> e3b747a (doc: readme)
-            "source": {
-                "type": "git",
-                "url": "https://github.com/staabm/side-effects-detector.git",
-                "reference": "d8334211a140ce329c13726d4a715adbddd0a163"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/staabm/side-effects-detector/zipball/d8334211a140ce329c13726d4a715adbddd0a163",
-                "reference": "d8334211a140ce329c13726d4a715adbddd0a163",
-                "shasum": ""
-            },
-            "require": {
-                "ext-tokenizer": "*",
-                "php": "^7.4 || ^8.0"
-            },
-            "require-dev": {
-                "phpstan/extension-installer": "^1.4.3",
-                "phpstan/phpstan": "^1.12.6",
-                "phpunit/phpunit": "^9.6.21",
-                "symfony/var-dumper": "^5.4.43",
-                "tomasvotruba/type-coverage": "1.0.0",
-                "tomasvotruba/unused-public": "1.0.0"
-            },
-            "type": "library",
-            "autoload": {
-                "classmap": [
-                    "lib/"
-                ]
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "description": "A static analysis tool to detect side effects in PHP code",
-            "keywords": [
-                "static analysis"
-            ],
-            "support": {
-                "issues": "https://github.com/staabm/side-effects-detector/issues",
-                "source": "https://github.com/staabm/side-effects-detector/tree/1.0.5"
-            },
-            "funding": [
-                {
-                    "url": "https://github.com/staabm",
-                    "type": "github"
-                }
-            ],
-            "time": "2024-10-20T05:08:20+00:00"
         },
         {
             "name": "symfony/event-dispatcher",

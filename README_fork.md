@@ -1,5 +1,7 @@
 # Fork info
 
+## Rebase
+
 Fetch tags from upstream:
 
 Only the first time, add upstream:
@@ -41,3 +43,19 @@ git add .
 git rebase --continue
 git push origin garr --force-with-lease
 ```
+
+### `composer.lock`
+
+`composer.lock` is a generated file and often conflicts when rebasing upstream tags.
+
+Instead of resolving conflicts manually, it is usually safer to **delete it and
+regenerate it** so Composer rebuilds a consistent dependency tree.
+
+```bash
+rm composer.lock
+composer install or ./build_with_docker.sh composer
+```
+
+## Build
+
+Run .github/workflows/krankerl-build.yml manually on `garr` branch to build the app
