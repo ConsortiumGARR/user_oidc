@@ -18,6 +18,7 @@ use OCA\UserOIDC\Service\DiscoveryService;
 use OCA\UserOIDC\Service\LdapService;
 use OCA\UserOIDC\Service\ProviderService;
 use OCA\UserOIDC\Service\ProvisioningService;
+use OCA\UserOIDC\User\Validator\IBearerTokenValidator;
 use OCA\UserOIDC\User\Validator\SelfEncodedValidator;
 use OCA\UserOIDC\User\Validator\UserInfoValidator;
 use OCP\AppFramework\Db\DoesNotExistException;
@@ -33,12 +34,14 @@ use OCP\ISession;
 use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\IUserManager;
+use OCP\Server;
 use OCP\User\Backend\ABackend;
 use OCP\User\Backend\ICountUsersBackend;
 use OCP\User\Backend\ICustomLogout;
 use OCP\User\Backend\IGetDisplayNameBackend;
 use OCP\User\Backend\IPasswordConfirmationBackend;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisplayNameBackend, IApacheBackend, ICustomLogout, ICountUsersBackend {
 	private $tokenValidators = [
@@ -161,12 +164,7 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 	 * {@inheritdoc}
 	 */
 	public function getLogoutUrl(): string {
-		return $this->urlGenerator->linkToRouteAbsolute(
-			'user_oidc.login.singleLogoutService',
-			[
-				'requesttoken' => \OC::$server->getCsrfTokenManager()->getToken()->getEncryptedValue(),
-			]
-		);
+		return $this->urlGenerator->linkToRouteAbsolute('user_oidc.login.singleLogoutService');
 	}
 
 	/**
@@ -279,13 +277,30 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 			if ($this->providerService->getSetting($provider->getId(), ProviderService::SETTING_CHECK_BEARER, '0') === '1') {
 				// find user id through different token validation methods
 				foreach ($this->tokenValidators as $validatorClass) {
-					$validator = \OC::$server->get($validatorClass);
-					$tokenUserId = $validator->isValidBearerToken($provider, $headerToken);
+					/** @var IBearerTokenValidator $validator */
+					$validator = Server::get($validatorClass);
+					try {
+						$tokenUserId = $validator->isValidBearerToken($provider, $headerToken);
+					} catch (Throwable|Exception $e) {
+						$this->logger->debug('Failed to validate the bearer token', ['exception' => $e]);
+						$tokenUserId = null;
+					}
 					if ($tokenUserId) {
 						$this->logger->debug(
 							'Token validated with ' . $validatorClass . ' by provider: ' . $provider->getId()
 								. ' (' . $provider->getIdentifier() . ')'
 						);
+						// prevent login of users that are not in a whitelisted group (if activated)
+						$restrictLoginToGroups = $this->providerService->getSetting($provider->getId(), ProviderService::SETTING_RESTRICT_LOGIN_TO_GROUPS, '0');
+						if ($restrictLoginToGroups === '1') {
+							$tokenAttributes = $validator->getUserAttributes($provider, $headerToken);
+							$syncGroups = $this->provisioningService->getSyncGroupsOfToken($provider->getId(), $tokenAttributes);
+
+							if ($syncGroups === null || count($syncGroups) === 0) {
+								$this->logger->debug('Prevented user from using a bearer token as user is not part of a whitelisted group');
+								return '';
+							}
+						}
 						$discovery = $this->discoveryService->obtainDiscovery($provider);
 						$this->eventDispatcher->dispatchTyped(new TokenValidatedEvent(['token' => $headerToken], $provider, $discovery));
 
@@ -409,7 +424,7 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 		string $provisioningStrategyClass, Provider $provider, string $tokenUserId, string $headerToken,
 		?IUser $existingUser,
 	): ?IUser {
-		$provisioningStrategy = \OC::$server->get($provisioningStrategyClass);
+		$provisioningStrategy = Server::get($provisioningStrategyClass);
 		return $provisioningStrategy->provisionUser($provider, $tokenUserId, $headerToken, $existingUser);
 	}
 }

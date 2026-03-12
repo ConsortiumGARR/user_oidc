@@ -36,6 +36,7 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\BruteForceProtection;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\OpenAPI;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Attribute\UseSession;
 use OCP\AppFramework\Http\DataDisplayResponse;
@@ -59,10 +60,12 @@ use OCP\Security\ICrypto;
 use OCP\Security\ISecureRandom;
 use OCP\Session\Exceptions\SessionNotAvailableException;
 use OCP\User\Events\BeforeUserLoggedInEvent;
+use OCP\User\Events\UserCreatedEvent;
 use OCP\User\Events\UserLoggedInEvent;
 use Psr\Log\LoggerInterface;
 use UnexpectedValueException;
 
+#[OpenAPI(scope: OpenAPI::SCOPE_IGNORE)]
 class LoginController extends BaseOidcController {
 	private const STATE = 'oidc.state';
 	private const NONCE = 'oidc.nonce';
@@ -105,7 +108,9 @@ class LoginController extends BaseOidcController {
 	 */
 	private function isSecure(): bool {
 		// no restriction in debug mode
-		return $this->isDebugModeEnabled() || $this->request->getServerProtocol() === 'https';
+		return $this->isDebugModeEnabled()
+			|| $this->appConfig->getValueBool(Application::APP_ID, 'allow_insecure_http', false, lazy: true)
+			|| $this->request->getServerProtocol() === 'https';
 	}
 
 	/**
@@ -130,7 +135,7 @@ class LoginController extends BaseOidcController {
 		}
 
 		// Remove protocol and domain name
-		$filtered = preg_replace('/^https?:\/\/[^\/]+/', '', $redirectUrl);
+		$filtered = preg_replace('/^https?:\/\/[^\/]+/', '', $redirectUrl) ?? '';
 
 		// Additional check: ensure the result starts with a single /
 		if (!preg_match('/^\/[^\/]/', $filtered)) {
@@ -212,8 +217,13 @@ class LoginController extends BaseOidcController {
 			// ['essential' => true] means it's mandatory but it won't trigger an error if it's not there
 			// null means we want it
 			'id_token' => new \stdClass(),
-			'userinfo' => new \stdClass(),
 		];
+		// Some providers (e.g. Google) reject the claims parameter when it contains a 'userinfo' key.
+		// Userinfo claims are enabled by default; set 'send_userinfo_claims' => false in config.php to disable them.
+		$sendUserinfoClaims = filter_var($oidcSystemConfig['send_userinfo_claims'] ?? true, FILTER_VALIDATE_BOOLEAN);
+		if ($sendUserinfoClaims) {
+			$claims['userinfo'] = new \stdClass();
+		}
 
 		$resolveNestedClaims = $this->providerService->getSetting($providerId, ProviderService::SETTING_RESOLVE_NESTED_AND_FALLBACK_CLAIMS_MAPPING, '0') === '1';
 		// by default: default claims are ENABLED
@@ -227,7 +237,9 @@ class LoginController extends BaseOidcController {
 			$groupsAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_GROUPS, 'groups');
 			foreach ([$emailAttribute, $displaynameAttribute, $quotaAttribute, $groupsAttribute] as $claim) {
 				$claims['id_token']->{$claim} = null;
-				$claims['userinfo']->{$claim} = null;
+				if ($sendUserinfoClaims) {
+					$claims['userinfo']->{$claim} = null;
+				}
 			}
 		} else {
 			// No default claim, we only set the claims if an attribute is mapped
@@ -251,7 +263,9 @@ class LoginController extends BaseOidcController {
 			foreach ($rawClaims as $claim) {
 				if ($claim !== '') {
 					$claims['id_token']->{$claim} = null;
-					$claims['userinfo']->{$claim} = null;
+					if ($sendUserinfoClaims) {
+						$claims['userinfo']->{$claim} = null;
+					}
 				}
 			}
 		}
@@ -262,7 +276,9 @@ class LoginController extends BaseOidcController {
 				$uidAttributeToRequest = trim(explode('|', $uidAttribute)[0]);
 			}
 			$claims['id_token']->{$uidAttributeToRequest} = ['essential' => true];
-			$claims['userinfo']->{$uidAttributeToRequest} = ['essential' => true];
+			if ($sendUserinfoClaims) {
+				$claims['userinfo']->{$uidAttributeToRequest} = ['essential' => true];
+			}
 		}
 
 		$extraClaimsString = $this->providerService->getSetting($providerId, ProviderService::SETTING_EXTRA_CLAIMS, '');
@@ -270,11 +286,11 @@ class LoginController extends BaseOidcController {
 			$extraClaims = explode(' ', $extraClaimsString);
 			foreach ($extraClaims as $extraClaim) {
 				$claims['id_token']->{$extraClaim} = null;
-				$claims['userinfo']->{$extraClaim} = null;
+				if ($sendUserinfoClaims) {
+					$claims['userinfo']->{$extraClaim} = null;
+				}
 			}
 		}
-
-		$oidcConfig = $this->config->getSystemValue('user_oidc', []);
 
 		$data += [
 			'client_id' => $provider->getClientId(),
@@ -286,8 +302,8 @@ class LoginController extends BaseOidcController {
 			'nonce' => $nonce,
 		];
 
-		if (isset($oidcConfig['prompt']) && is_string($oidcConfig['prompt'])) {
-			$data['prompt'] = $oidcConfig['prompt'];
+		if (isset($oidcSystemConfig['prompt']) && is_string($oidcSystemConfig['prompt'])) {
+			$data['prompt'] = $oidcSystemConfig['prompt'];
 		}
 
 		if ($isPkceEnabled) {
@@ -451,7 +467,23 @@ class LoginController extends BaseOidcController {
 			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, [], false);
 		}
 
-		$data = json_decode($body, true);
+		try {
+			$data = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
+		} catch (\JsonException $e) {
+			$this->logger->error('Invalid JSON response from IdP token endpoint', [
+				'exception' => $e,
+				'body' => $body,
+			]);
+			$message = $this->l10n->t('Failed to contact the OIDC provider token endpoint');
+			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, [], false);
+		}
+
+		if (!isset($data['id_token'])) {
+			$this->logger->error('Missing id_token in IdP token response', ['data' => $data]);
+			$message = $this->l10n->t('Failed to contact the OIDC provider token endpoint');
+			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, [], false);
+		}
+
 		$this->logger->debug('Received code response: ' . json_encode($data, JSON_THROW_ON_ERROR));
 		$this->eventDispatcher->dispatchTyped(new TokenObtainedEvent($data, $provider, $discovery));
 
@@ -470,24 +502,28 @@ class LoginController extends BaseOidcController {
 		// default is false
 		if (isset($oidcSystemConfig['enrich_login_id_token_with_userinfo']) && $oidcSystemConfig['enrich_login_id_token_with_userinfo']) {
 			$userInfo = $this->oidcService->userInfo($provider, $data['access_token']);
+			$this->logger->debug('[UserInfoEnrich] Enriching the JWT payload with userinfo values', ['userinfo' => $userInfo]);
 			foreach ($userInfo as $key => $value) {
-				// give priority to id token values, only use userinfo ones if missing in id token
+				// give priority to id token values, only use userinfo ones if they are missing in the ID token
 				if (!isset($idTokenPayload->{$key})) {
 					$idTokenPayload->{$key} = $value;
+					$this->logger->debug('[UserInfoEnrich] Using userinfo value: ' . $key . ' => ' . $value);
 				}
 			}
+		} else {
+			$this->logger->debug('[UserInfoEnrich] The feature is not enabled');
 		}
 
 		$this->logger->debug('Parsed the JWT payload: ' . json_encode($idTokenPayload, JSON_THROW_ON_ERROR));
 
-		if ($idTokenPayload->exp < $this->timeFactory->getTime()) {
+		if (!isset($idTokenPayload->exp) || $idTokenPayload->exp < $this->timeFactory->getTime()) {
 			$this->logger->debug('Token expired');
 			$message = $this->l10n->t('The received token is expired.');
 			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, ['reason' => 'token expired']);
 		}
 
 		// Verify issuer
-		if ($idTokenPayload->iss !== $discovery['issuer']) {
+		if (!isset($idTokenPayload->iss) || $idTokenPayload->iss !== $discovery['issuer']) {
 			$this->logger->debug('This token is issued by the wrong issuer');
 			$message = $this->l10n->t('The issuer does not match the one from the discovery endpoint');
 			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, ['invalid_issuer' => $idTokenPayload->iss]);
@@ -574,6 +610,10 @@ class LoginController extends BaseOidcController {
 			// use potential user from other backend, create it in our backend if it does not exist
 			$provisioningResult = $this->provisioningService->provisionUser($userId, $providerId, $idTokenPayload, $existingUser);
 			$user = $provisioningResult['user'];
+			if ($existingUser === null && $user !== null) {
+				// we know we just created a user
+				$this->eventDispatcher->dispatchTyped(new UserCreatedEvent($user, ''));
+			}
 			$this->session->set('user_oidc.oidcUserData', $provisioningResult['userData']);
 		} else {
 			// when auto provision is disabled, we assume the user has been created by another user backend (or manually)
@@ -591,13 +631,14 @@ class LoginController extends BaseOidcController {
 
 		$this->userSession->setUser($user);
 		if ($this->userSession instanceof OC_UserSession) {
+			$userId = $user->getUID();
 			// TODO server should/could be refactored so we don't need to manually create the user session and dispatch the login-related events
 			// Warning! If GSS is used, it reacts to the BeforeUserLoggedInEvent and handles the redirection itself
 			// So nothing after dispatching this event will be executed
-			$this->eventDispatcher->dispatchTyped(new BeforeUserLoggedInEvent($user->getUID(), null, \OCP\Server::get(Backend::class)));
+			$this->eventDispatcher->dispatchTyped(new BeforeUserLoggedInEvent($userId, null, \OCP\Server::get(Backend::class)));
 
-			$this->userSession->completeLogin($user, ['loginName' => $user->getUID(), 'password' => '']);
-			$this->userSession->createSessionToken($this->request, $user->getUID(), $user->getUID());
+			$this->userSession->completeLogin($user, ['loginName' => $userId, 'password' => '']);
+			$this->userSession->createSessionToken($this->request, $userId, $userId);
 			$this->userSession->createRememberMeToken($user);
 
 			// prevent password confirmation
@@ -609,7 +650,7 @@ class LoginController extends BaseOidcController {
 				$this->authTokenProvider->updateToken($token);
 			}
 
-			$this->eventDispatcher->dispatchTyped(new UserLoggedInEvent($user, $user->getUID(), null, false));
+			$this->eventDispatcher->dispatchTyped(new UserLoggedInEvent($user, $userId, null, false));
 		}
 
 		$storeLoginTokenEnabled = $this->appConfig->getValueString(Application::APP_ID, 'store_login_token', '0', lazy: true) === '1';
@@ -678,6 +719,7 @@ class LoginController extends BaseOidcController {
 		if (!isset($oidcSystemConfig['single_logout']) || $oidcSystemConfig['single_logout']) {
 			$isFromGS = ($this->config->getSystemValueBool('gs.enabled', false)
 				&& $this->config->getSystemValueString('gss.mode', '') === 'master');
+			$providerId = null;
 			if ($isFromGS) {
 				// Request is from master GlobalScale: we get the provider ID from the JWT token provided by the slave
 				$jwt = $this->request->getParam('jwt', '');
@@ -775,7 +817,10 @@ class LoginController extends BaseOidcController {
 		$this->logger->debug('Parsed the logout JWT payload: ' . json_encode($logoutTokenPayload, JSON_THROW_ON_ERROR));
 
 		// check the audience
-		if (!(($logoutTokenPayload->aud === $provider->getClientId() || in_array($provider->getClientId(), $logoutTokenPayload->aud, true)))) {
+		$aud = $logoutTokenPayload->aud;
+		$clientId = $provider->getClientId();
+		$audMatches = (is_string($aud) && $aud === $clientId) || (is_array($aud) && in_array($clientId, $aud, true));
+		if (!$audMatches) {
 			return $this->getBackchannelLogoutErrorResponse(
 				'invalid audience',
 				'The audience of the logout token does not match the provider',
