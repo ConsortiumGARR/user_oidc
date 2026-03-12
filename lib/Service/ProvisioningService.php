@@ -401,7 +401,7 @@ class ProvisioningService {
 
 		$simpleAccountPropertyAttributes = [
 			IAccountManager::PROPERTY_PHONE => ['value' => $phone, 'setting_key' => ProviderService::SETTING_MAPPING_PHONE],
-			IAccountManager::PROPERTY_ADDRESS => ['value' => $address, 'setting_key' => ProviderService::SETTING_MAPPING_PHONE],
+			IAccountManager::PROPERTY_ADDRESS => ['value' => $address, 'setting_key' => ProviderService::SETTING_MAPPING_ADDRESS],
 			IAccountManager::PROPERTY_WEBSITE => ['value' => $website, 'setting_key' => ProviderService::SETTING_MAPPING_WEBSITE],
 			IAccountManager::PROPERTY_TWITTER => ['value' => $twitter, 'setting_key' => ProviderService::SETTING_MAPPING_TWITTER],
 			IAccountManager::PROPERTY_FEDIVERSE => ['value' => $fediverse, 'setting_key' => ProviderService::SETTING_MAPPING_FEDIVERSE],
@@ -663,15 +663,17 @@ class ProvisioningService {
 		}
 
 		$currentSubAdminGroups = $this->subAdminManager->getSubAdminsGroups($user);
+		$adminGroupGids = array_map(fn($g) => $g->gid, $adminGroups);
 
 		foreach ($currentSubAdminGroups as $group) {
-			if (!in_array($group->getGID(), $adminGroups))
+			if (!in_array($group->getGID(), $adminGroupGids, true)) {
 				$this->subAdminManager->deleteSubAdmin($user, $group);
+			}
 		}
 
-		foreach ($adminGroups as $group) {
-			$group = $this->groupManager->get($group->gid);
-			if ($group)
+		foreach ($adminGroups as $adminGroup) {
+			$group = $this->groupManager->get($adminGroup->gid);
+			if ($group !== null)
 				$this->subAdminManager->createSubAdmin($user, $group);
 		}
 	}
