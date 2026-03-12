@@ -665,15 +665,17 @@ class ProvisioningService {
 		$currentSubAdminGroups = $this->subAdminManager->getSubAdminsGroups($user);
 		$adminGroupGids = array_map(fn($g) => $g->gid, $adminGroups);
 
+    	// Remove subadmin from groups no longer in token
 		foreach ($currentSubAdminGroups as $group) {
 			if (!in_array($group->getGID(), $adminGroupGids, true)) {
 				$this->subAdminManager->deleteSubAdmin($user, $group);
 			}
 		}
 
+    	// Add subadmin only for new groups (skip already existing ones)
 		foreach ($adminGroups as $adminGroup) {
 			$group = $this->groupManager->get($adminGroup->gid);
-			if ($group !== null)
+    		if ($group !== null && !$this->subAdminManager->isSubAdminOfGroup($user, $group))
 				$this->subAdminManager->createSubAdmin($user, $group);
 		}
 	}
