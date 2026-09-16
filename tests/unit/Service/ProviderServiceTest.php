@@ -7,12 +7,12 @@
 
 declare(strict_types=1);
 
-
 use OCA\UserOIDC\AppInfo\Application;
 use OCA\UserOIDC\Db\ProviderMapper;
 use OCA\UserOIDC\Service\ProviderService;
 use OCP\IAppConfig;
 use PHPUnit\Framework\Assert;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class ProviderServiceTest extends TestCase {
@@ -96,7 +96,9 @@ class ProviderServiceTest extends TestCase {
 					'groupProvisioning' => true,
 					'groupWhitelistRegex' => '1',
 					'restrictLoginToGroups' => true,
+					'azureGroupNames' => true,
 					'nestedAndFallbackClaims' => true,
+					'enrichLoginIdTokenWithUserinfo' => true,
 				],
 			],
 			[
@@ -142,7 +144,9 @@ class ProviderServiceTest extends TestCase {
 					'groupProvisioning' => true,
 					'groupWhitelistRegex' => '1',
 					'restrictLoginToGroups' => true,
+					'azureGroupNames' => true,
 					'nestedAndFallbackClaims' => true,
+					'enrichLoginIdTokenWithUserinfo' => true,
 				],
 			],
 		], $this->providerService->getProvidersWithSettings());
@@ -184,7 +188,9 @@ class ProviderServiceTest extends TestCase {
 			'mappingBirthdate' => 'birthdate',
 			'groupWhitelistRegex' => '',
 			'restrictLoginToGroups' => false,
+			'azureGroupNames' => false,
 			'nestedAndFallbackClaims' => false,
+			'enrichLoginIdTokenWithUserinfo' => false,
 		];
 		$this->appConfig->expects(self::any())
 			->method('getValueString')
@@ -223,7 +229,9 @@ class ProviderServiceTest extends TestCase {
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_GROUP_PROVISIONING, '', true, '1'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_GROUP_WHITELIST_REGEX, '', true, ''],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_RESTRICT_LOGIN_TO_GROUPS, '', true, '0'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_AZURE_GROUP_NAMES, '', true, '0'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_RESOLVE_NESTED_AND_FALLBACK_CLAIMS_MAPPING, '', true, '0'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_ENRICH_LOGIN_ID_TOKEN_WITH_USERINFO, '', true, '0'],
 			]);
 
 		Assert::assertEquals(
@@ -278,7 +286,7 @@ class ProviderServiceTest extends TestCase {
 		];
 	}
 
-	/** @dataProvider dataGetSetting */
+	#[DataProvider('dataGetSetting')]
 	public function testGetSetting($providerId, $key, $stored, $expected, $default = '') {
 		$this->appConfig->expects(self::once())
 			->method('getValueString')
@@ -312,7 +320,7 @@ class ProviderServiceTest extends TestCase {
 			[ProviderService::SETTING_EXTRA_CLAIMS, 'test', 'test', 'test'],
 		];
 	}
-	/** @dataProvider dataConvertJson */
+	#[DataProvider('dataConvertJson')]
 	public function testConvertJson($key, $value, $stored, $expected) {
 		$raw = self::invokePrivate($this->providerService, 'convertFromJSON', [$key, $value]);
 		Assert::assertEquals($stored, $raw);

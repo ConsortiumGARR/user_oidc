@@ -155,6 +155,10 @@ class UpsertProvider extends Base {
 			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_MAPPING_GROUPS,
 			'description' => 'Attribute mapping of the groups',
 		],
+		'entraid-group-names' => [
+			'shortcut' => null, 'mode' => InputOption::VALUE_REQUIRED, 'setting_key' => ProviderService::SETTING_AZURE_GROUP_NAMES,
+			'description' => 'Turn on usage of mapping guid to names with Microsoft Graph. 1 to enable, 0 to disable (default)',
+		],
 		'resolve-nested-claims' => [
 			'shortcut' => null,
 			'mode' => InputOption::VALUE_REQUIRED,
@@ -171,7 +175,7 @@ class UpsertProvider extends Base {
 		parent::__construct();
 	}
 
-	protected function configure() {
+	protected function configure(): void {
 		$this
 			->setName('user_oidc:provider')
 			->setDescription('Create, show or update a OpenId connect provider config given the identifier of a provider')
@@ -190,7 +194,7 @@ class UpsertProvider extends Base {
 		parent::configure();
 	}
 
-	protected function execute(InputInterface $input, OutputInterface $output) {
+	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$outputFormat = $input->getOption('output') ?? 'table';
 
 		$identifier = $input->getArgument('identifier');
@@ -279,7 +283,7 @@ class UpsertProvider extends Base {
 		return 0;
 	}
 
-	private function listProviders(InputInterface $input, OutputInterface $output) {
+	private function listProviders(InputInterface $input, OutputInterface $output): int {
 		$outputFormat = $input->getOption('output') ?? 'table';
 		$providers = $this->providerMapper->getProviders();
 

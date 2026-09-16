@@ -19,6 +19,7 @@ use OCA\UserOIDC\AppInfo\Application;
 use OCA\UserOIDC\Db\ProviderMapper;
 use OCA\UserOIDC\Db\SessionMapper;
 use OCA\UserOIDC\Event\TokenObtainedEvent;
+use OCA\UserOIDC\Event\UserObtainedTokenEvent;
 use OCA\UserOIDC\Helper\HttpClientHelper;
 use OCA\UserOIDC\Service\DiscoveryService;
 use OCA\UserOIDC\Service\LdapService;
@@ -67,12 +68,24 @@ use UnexpectedValueException;
 
 #[OpenAPI(scope: OpenAPI::SCOPE_IGNORE)]
 class LoginController extends BaseOidcController {
+	// these keys (state, nonce, login_providerid, redirect, code_verifier, timestamp)
+	// are suffixed with the state value so they can be stored once per login flow
 	private const STATE = 'oidc.state';
 	private const NONCE = 'oidc.nonce';
-	public const PROVIDERID = 'oidc.providerid';
+	// this is the provider ID we store during the login flow (set by login, get by code)
+	public const LOGIN_PROVIDERID = 'oidc.login.providerid';
 	public const REDIRECT_AFTER_LOGIN = 'oidc.redirect';
-	private const ID_TOKEN = 'oidc.id_token';
 	private const CODE_VERIFIER = 'oidc.code_verifier';
+	private const TIMESTAMP = 'oidc.timestamp';
+
+	// this is the provider ID we store once the authentication was successful
+	// it is used by the singleLogout endpoint and the user backend
+	public const PROVIDERID = 'oidc.providerid';
+	// this id token is used to send id_token_hint to the IdP logout endpoint
+	private const ID_TOKEN = 'oidc.id_token';
+
+	// we consider that a login flow should complete within 5 minutes
+	private const LOGIN_FLOW_TIMEOUT = 300;
 
 	public function __construct(
 		IRequest $request,
@@ -130,16 +143,20 @@ class LoginController extends BaseOidcController {
 	 * @return RedirectResponse
 	 */
 	private function getRedirectResponse(?string $redirectUrl = null): RedirectResponse {
+		$baseUrl = $this->urlGenerator->getBaseUrl();
+
 		if ($redirectUrl === null) {
-			return new RedirectResponse($this->urlGenerator->getBaseUrl());
+			return new RedirectResponse($baseUrl);
 		}
 
 		// Remove protocol and domain name
 		$filtered = preg_replace('/^https?:\/\/[^\/]+/', '', $redirectUrl) ?? '';
 
-		// Additional check: ensure the result starts with a single /
-		if (!preg_match('/^\/[^\/]/', $filtered)) {
-			return new RedirectResponse($this->urlGenerator->getBaseUrl());
+		// Reject protocol-relative URLs and anything not starting with a single slash followed
+		// by an alphanumeric or one of [_-.~?#]
+		if (!preg_match('/^\/[A-Za-z0-9_\-.~?#]/', $filtered)) {
+			$this->logger->error("Rejected invalid redirect url '{$filtered}'");
+			return new RedirectResponse($baseUrl);
 		}
 
 		return new RedirectResponse($filtered);
@@ -189,11 +206,15 @@ class LoginController extends BaseOidcController {
 		}
 
 		$state = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
-		$this->session->set(self::STATE, $state);
-		$this->session->set(self::REDIRECT_AFTER_LOGIN, $redirectUrl);
+		$sessionKeySuffix = '-' . $state;
+		$this->session->set(self::STATE . $sessionKeySuffix, $state);
+		$this->logger->debug('Storing OIDC state', ['state' => $state]);
+		$timestamp = $this->timeFactory->getTime();
+		$this->session->set(self::TIMESTAMP . $sessionKeySuffix, $timestamp);
+		$this->session->set(self::REDIRECT_AFTER_LOGIN . $sessionKeySuffix, $redirectUrl);
 
 		$nonce = $this->random->generate(32, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER);
-		$this->session->set(self::NONCE, $nonce);
+		$this->session->set(self::NONCE . $sessionKeySuffix, $nonce);
 
 		$oidcSystemConfig = $this->config->getSystemValue('user_oidc', []);
 		$isPkceSupported = in_array('S256', $discovery['code_challenge_methods_supported'] ?? [], true);
@@ -202,10 +223,10 @@ class LoginController extends BaseOidcController {
 		if ($isPkceEnabled) {
 			// PKCE code_challenge see https://datatracker.ietf.org/doc/html/rfc7636
 			$code_verifier = $this->random->generate(128, ISecureRandom::CHAR_DIGITS . ISecureRandom::CHAR_UPPER . ISecureRandom::CHAR_LOWER);
-			$this->session->set(self::CODE_VERIFIER, $code_verifier);
+			$this->session->set(self::CODE_VERIFIER . $sessionKeySuffix, $code_verifier);
 		}
 
-		$this->session->set(self::PROVIDERID, $providerId);
+		$this->session->set(self::LOGIN_PROVIDERID . $sessionKeySuffix, $providerId);
 		$this->session->close();
 
 		// get attribute mapping settings
@@ -311,7 +332,6 @@ class LoginController extends BaseOidcController {
 			$data['code_challenge_method'] = 'S256';
 		}
 
-
 		$authorizationUrl = $this->discoveryService->buildAuthorizationUrl($discovery['authorization_endpoint'], $data);
 
 		$this->logger->debug('Redirecting user to: ' . $authorizationUrl);
@@ -342,6 +362,12 @@ class LoginController extends BaseOidcController {
 	#[UseSession]
 	#[BruteForceProtection(action: 'userOidcCode')]
 	public function code(string $state = '', string $code = '', string $scope = '', string $error = '', string $error_description = '') {
+		if ($this->userSession->isLoggedIn()) {
+			$sessionKeySuffix = '-' . $state;
+			$redirectUrl = $this->session->get(self::REDIRECT_AFTER_LOGIN . $sessionKeySuffix);
+			$this->cleanupSessionState($sessionKeySuffix);
+			return $this->getRedirectResponse(!empty($redirectUrl) ? $redirectUrl : null);
+		}
 		if (!$this->isSecure()) {
 			return $this->buildProtocolErrorResponse();
 		}
@@ -359,15 +385,26 @@ class LoginController extends BaseOidcController {
 			return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, [], false);
 		}
 
-		$storedState = $this->session->get(self::STATE);
+		$sessionKeySuffix = '-' . $state;
+		$storedState = $this->session->get(self::STATE . $sessionKeySuffix);
+
+		$currentTimestamp = $this->timeFactory->getTime();
+		$sessionTimestamp = $this->session->get(self::TIMESTAMP . $sessionKeySuffix);
+		if ($currentTimestamp - $sessionTimestamp > self::LOGIN_FLOW_TIMEOUT) {
+			// the state, nonce etc... were stored too long ago, the login flow has expired
+			$this->cleanupSessionState($sessionKeySuffix);
+			$message = $this->l10n->t('The received state has expired.');
+			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, [], false);
+		}
 
 		if ($storedState !== $state) {
 			$this->logger->warning('state does not match', [
 				'got' => $state,
 				'expected' => $storedState,
-				'state_exists_in_session' => $this->session->exists(self::STATE),
+				'state_exists_in_session' => $this->session->exists(self::STATE . $sessionKeySuffix),
 			]);
 
+			$this->cleanupSessionState($sessionKeySuffix);
 			$message = $this->l10n->t('The received state does not match the expected value.');
 			if ($this->isDebugModeEnabled()) {
 				$responseData = [
@@ -375,7 +412,7 @@ class LoginController extends BaseOidcController {
 					'error_description' => $message,
 					'got' => $state,
 					'expected' => $storedState,
-					'state_exists_in_session' => $this->session->exists(self::STATE),
+					'state_exists_in_session' => $this->session->exists(self::STATE . $sessionKeySuffix),
 				];
 				return new JSONResponse($responseData, Http::STATUS_FORBIDDEN);
 			}
@@ -383,12 +420,13 @@ class LoginController extends BaseOidcController {
 			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, ['reason' => 'state does not match'], true);
 		}
 
-		$providerId = (int)$this->session->get(self::PROVIDERID);
+		$providerId = (int)$this->session->get(self::LOGIN_PROVIDERID . $sessionKeySuffix);
 		$provider = $this->providerMapper->getProvider($providerId);
 		try {
 			$providerClientSecret = $this->crypto->decrypt($provider->getClientSecret());
 		} catch (\Exception $e) {
 			$this->logger->error('Failed to decrypt the client secret', ['exception' => $e]);
+			$this->cleanupSessionState($sessionKeySuffix);
 			$message = $this->l10n->t('Failed to decrypt the OIDC provider client secret');
 			return $this->buildErrorTemplateResponse($message, Http::STATUS_BAD_REQUEST, [], false);
 		}
@@ -408,7 +446,8 @@ class LoginController extends BaseOidcController {
 				'grant_type' => 'authorization_code',
 			];
 			if ($isPkceEnabled) {
-				$requestBody['code_verifier'] = $this->session->get(self::CODE_VERIFIER); // Set for the PKCE flow
+				// Set for the PKCE flow
+				$requestBody['code_verifier'] = $this->session->get(self::CODE_VERIFIER . $sessionKeySuffix);
 			}
 
 			$headers = [];
@@ -460,10 +499,12 @@ class LoginController extends BaseOidcController {
 				$this->logger->debug('Failed to contact the OIDC provider token endpoint', ['exception' => $e]);
 				$message = $this->l10n->t('Failed to contact the OIDC provider token endpoint');
 			}
+			$this->cleanupSessionState($sessionKeySuffix);
 			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, [], false);
 		} catch (\Exception $e) {
 			$this->logger->debug('Failed to contact the OIDC provider token endpoint', ['exception' => $e]);
 			$message = $this->l10n->t('Failed to contact the OIDC provider token endpoint');
+			$this->cleanupSessionState($sessionKeySuffix);
 			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, [], false);
 		}
 
@@ -475,16 +516,18 @@ class LoginController extends BaseOidcController {
 				'body' => $body,
 			]);
 			$message = $this->l10n->t('Failed to contact the OIDC provider token endpoint');
+			$this->cleanupSessionState($sessionKeySuffix);
 			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, [], false);
 		}
 
 		if (!isset($data['id_token'])) {
-			$this->logger->error('Missing id_token in IdP token response', ['data' => $data]);
+			$this->logger->error('Missing id_token in IdP token response', ['keys' => array_keys($data)]);
 			$message = $this->l10n->t('Failed to contact the OIDC provider token endpoint');
+			$this->cleanupSessionState($sessionKeySuffix);
 			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, [], false);
 		}
 
-		$this->logger->debug('Received code response: ' . json_encode($data, JSON_THROW_ON_ERROR));
+		$this->logger->debug('Received code response');
 		$this->eventDispatcher->dispatchTyped(new TokenObtainedEvent($data, $provider, $discovery));
 
 		// TODO: proper error handling
@@ -500,24 +543,31 @@ class LoginController extends BaseOidcController {
 		}
 
 		// default is false
-		if (isset($oidcSystemConfig['enrich_login_id_token_with_userinfo']) && $oidcSystemConfig['enrich_login_id_token_with_userinfo']) {
+		$globalEnrichWithUserinfo = isset($oidcSystemConfig['enrich_login_id_token_with_userinfo']) && $oidcSystemConfig['enrich_login_id_token_with_userinfo'];
+		$providerEnrichWithUserinfo = $this->providerService->getSetting(
+			$provider->getId(),
+			ProviderService::SETTING_ENRICH_LOGIN_ID_TOKEN_WITH_USERINFO,
+			'0'
+		) === '1';
+		if ($globalEnrichWithUserinfo || $providerEnrichWithUserinfo) {
 			$userInfo = $this->oidcService->userInfo($provider, $data['access_token']);
-			$this->logger->debug('[UserInfoEnrich] Enriching the JWT payload with userinfo values', ['userinfo' => $userInfo]);
+			$this->logger->debug('[UserInfoEnrich] Enriching the JWT payload with userinfo values');
 			foreach ($userInfo as $key => $value) {
 				// give priority to id token values, only use userinfo ones if they are missing in the ID token
 				if (!isset($idTokenPayload->{$key})) {
 					$idTokenPayload->{$key} = $value;
-					$this->logger->debug('[UserInfoEnrich] Using userinfo value: ' . $key . ' => ' . $value);
+					$this->logger->debug('[UserInfoEnrich] Using userinfo key: ' . $key);
 				}
 			}
 		} else {
 			$this->logger->debug('[UserInfoEnrich] The feature is not enabled');
 		}
 
-		$this->logger->debug('Parsed the JWT payload: ' . json_encode($idTokenPayload, JSON_THROW_ON_ERROR));
+		$this->logger->debug('Parsed the JWT payload');
 
 		if (!isset($idTokenPayload->exp) || $idTokenPayload->exp < $this->timeFactory->getTime()) {
 			$this->logger->debug('Token expired');
+			$this->cleanupSessionState($sessionKeySuffix);
 			$message = $this->l10n->t('The received token is expired.');
 			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, ['reason' => 'token expired']);
 		}
@@ -525,6 +575,7 @@ class LoginController extends BaseOidcController {
 		// Verify issuer
 		if (!isset($idTokenPayload->iss) || $idTokenPayload->iss !== $discovery['issuer']) {
 			$this->logger->debug('This token is issued by the wrong issuer');
+			$this->cleanupSessionState($sessionKeySuffix);
 			$message = $this->l10n->t('The issuer does not match the one from the discovery endpoint');
 			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, ['invalid_issuer' => $idTokenPayload->iss]);
 		}
@@ -540,6 +591,7 @@ class LoginController extends BaseOidcController {
 				|| (is_array($tokenAudience) && !in_array($providerClientId, $tokenAudience, true))
 			) {
 				$this->logger->debug('This token is not for us');
+				$this->cleanupSessionState($sessionKeySuffix);
 				$message = $this->l10n->t('The audience does not match ours');
 				return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, ['invalid_audience' => $idTokenPayload->aud]);
 			}
@@ -552,13 +604,15 @@ class LoginController extends BaseOidcController {
 			// If the azp claim is present, it should be the client ID
 			if (isset($idTokenPayload->azp) && $idTokenPayload->azp !== $provider->getClientId()) {
 				$this->logger->debug('This token is not for us, authorized party (azp) is different than the client ID');
+				$this->cleanupSessionState($sessionKeySuffix);
 				$message = $this->l10n->t('The authorized party does not match ours');
 				return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, ['invalid_azp' => $idTokenPayload->azp]);
 			}
 		}
 
-		if (isset($idTokenPayload->nonce) && $idTokenPayload->nonce !== $this->session->get(self::NONCE)) {
+		if (isset($idTokenPayload->nonce) && $idTokenPayload->nonce !== $this->session->get(self::NONCE . $sessionKeySuffix)) {
 			$this->logger->debug('Nonce does not match');
+			$this->cleanupSessionState($sessionKeySuffix);
 			$message = $this->l10n->t('The nonce does not match');
 			return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, ['reason' => 'invalid nonce']);
 		}
@@ -568,6 +622,7 @@ class LoginController extends BaseOidcController {
 		$userId = $this->provisioningService->getClaimValue($idTokenPayload, $uidAttribute, $providerId);
 
 		if ($userId === null) {
+			$this->cleanupSessionState($sessionKeySuffix);
 			$message = $this->l10n->t('Failed to provision the user');
 			return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => 'failed to provision user']);
 		}
@@ -579,6 +634,7 @@ class LoginController extends BaseOidcController {
 
 			if ($syncGroups === null || count($syncGroups) === 0) {
 				$this->logger->debug('Prevented user from login as user is not part of a whitelisted group');
+				$this->cleanupSessionState($sessionKeySuffix);
 				$message = $this->l10n->t('You do not have permission to log in to this instance. If you think this is an error, please contact an administrator.');
 				return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, ['reason' => 'user not in any whitelisted group']);
 			}
@@ -604,6 +660,7 @@ class LoginController extends BaseOidcController {
 			if (!$softAutoProvisionAllowed && $existingUser !== null && $existingUser->getBackendClassName() !== Application::APP_ID) {
 				// if soft auto-provisioning is disabled,
 				// we refuse login for a user that already exists in another backend
+				$this->cleanupSessionState($sessionKeySuffix);
 				$message = $this->l10n->t('User conflict');
 				return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => 'non-soft auto provision, user conflict'], false);
 			}
@@ -621,11 +678,13 @@ class LoginController extends BaseOidcController {
 		}
 
 		if ($user === null) {
+			$this->cleanupSessionState($sessionKeySuffix);
 			$message = $this->l10n->t('Failed to provision the user');
 			return $this->build403TemplateResponse($message, Http::STATUS_BAD_REQUEST, ['reason' => 'failed to provision user']);
 		}
 
 		$this->session->set(self::ID_TOKEN, $idTokenRaw);
+		$this->session->set(self::PROVIDERID, $providerId);
 
 		$this->logger->debug('Logging user in');
 
@@ -653,6 +712,16 @@ class LoginController extends BaseOidcController {
 			$this->eventDispatcher->dispatchTyped(new UserLoggedInEvent($user, $userId, null, false));
 		}
 
+		$this->eventDispatcher->dispatchTyped(
+			new UserObtainedTokenEvent(
+				$user->getUID(),
+				null,
+				$data,
+				$provider,
+				$discovery
+			)
+		);
+
 		$storeLoginTokenEnabled = $this->appConfig->getValueString(Application::APP_ID, 'store_login_token', '0', lazy: true) === '1';
 		if ($storeLoginTokenEnabled) {
 			// store all token information for potential token exchange requests
@@ -665,7 +734,7 @@ class LoginController extends BaseOidcController {
 		$this->config->setUserValue($user->getUID(), Application::APP_ID, 'had_token_once', '1');
 
 		// Set last password confirm to the future as we don't have passwords to confirm against with SSO
-		$this->session->set('last-password-confirm', strtotime('+4 year', time()));
+		$this->session->set('last-password-confirm', $this->timeFactory->getTime() + 4 * 365 * 24 * 3600);
 
 		// for backchannel logout
 		try {
@@ -691,12 +760,15 @@ class LoginController extends BaseOidcController {
 
 		$this->logger->debug('Redirecting user');
 
-		$redirectUrl = $this->session->get(self::REDIRECT_AFTER_LOGIN);
+		$redirectUrl = $this->session->get(self::REDIRECT_AFTER_LOGIN . $sessionKeySuffix);
+		$this->cleanupSessionState($sessionKeySuffix);
 		if ($redirectUrl) {
 			return $this->getRedirectResponse($redirectUrl);
 		}
 
-		return new RedirectResponse(\OC_Util::getDefaultPageUrl());
+		/** Replace with ServerVersion once we depends on NC 31 */
+		$is32OrGreater = version_compare($this->config->getSystemValueString('version', '0.0.0'), '32.0.0', '>=');
+		return new RedirectResponse($is32OrGreater ? $this->urlGenerator->linkToDefaultPageUrl() : \OC_Util::getDefaultPageUrl());
 	}
 
 	/**
@@ -729,8 +801,14 @@ class LoginController extends BaseOidcController {
 					$decoded = (array)JWT::decode($jwt, new Key($key, 'HS256'));
 
 					$providerId = $decoded['oidcProviderId'] ?? null;
+				} catch (\DomainException $e) {
+					$this->logger->error(
+						'Failed to decode GSS JWT: ' . $e->getMessage()
+						. '. If the key is too short, gss.jwt.key must be at least 32 characters for HS256 (per RFC 7518).',
+						['exception' => $e]
+					);
 				} catch (\Exception $e) {
-					$this->logger->debug('Failed to get the logout provider ID in the request from GSS', ['exception' => $e]);
+					$this->logger->error('Failed to decode GSS JWT in single logout', ['exception' => $e]);
 				}
 			} else {
 				$providerId = $this->session->get(self::PROVIDERID);
@@ -788,6 +866,9 @@ class LoginController extends BaseOidcController {
 	 * Endpoint called by the IdP (OP) when end_session_endpoint is called by another client
 	 * The logout token contains the sid for which we know the sessionId
 	 * which leads to the auth token that we can invalidate
+	 * Note : in a RP-initiated logout scenario
+	 * the invalidation step should not be required since it would have been cleared
+	 * in singleLogoutService()
 	 * Implemented according to https://openid.net/specs/openid-connect-backchannel-1_0.html
 	 *
 	 * @param string $providerIdentifier
@@ -805,7 +886,17 @@ class LoginController extends BaseOidcController {
 			return $this->getBackchannelLogoutErrorResponse(
 				'provider not found',
 				'The provider was not found in Nextcloud',
-				['provider_not_found' => $providerIdentifier]
+				['extra_context' => 'Got provider identifier: ' . $providerIdentifier],
+			);
+		}
+
+		try {
+			$discovery = $this->discoveryService->obtainDiscovery($provider);
+		} catch (\Exception $e) {
+			return $this->getBackchannelLogoutErrorResponse(
+				'could not reach provider endpoint',
+				'URL: ' . $provider->getDiscoveryEndpoint() . 'was not reachable',
+				severity: \Psr\Log\LogLevel::ERROR,
 			);
 		}
 
@@ -816,6 +907,27 @@ class LoginController extends BaseOidcController {
 
 		$this->logger->debug('Parsed the logout JWT payload: ' . json_encode($logoutTokenPayload, JSON_THROW_ON_ERROR));
 
+		// REQUIRED claims check step
+		// https://openid.net/specs/openid-connect-backchannel-1_0.html#LogoutToken
+		$requiredClaims = ['iss', 'aud', 'iat', 'exp', 'jti', 'events'];
+		$missingClaims = [];
+		$logoutTokenArray = (array)$logoutTokenPayload;
+		foreach ($requiredClaims as $claim) {
+			if (!array_key_exists($claim, $logoutTokenArray)) {
+				$missingClaims[] = $claim;
+			}
+		}
+		if (!empty($missingClaims)) {
+			return $this->getBackchannelLogoutErrorResponse(
+				'missing one or more claims',
+				'missing the following claim(s) : ' . implode(', ', $missingClaims),
+				['extra_context' => 'Probably is an IdP side issue']
+			);
+		}
+
+		// Logout token validation step
+		// https://openid.net/specs/openid-connect-backchannel-1_0.html#Validation
+
 		// check the audience
 		$aud = $logoutTokenPayload->aud;
 		$clientId = $provider->getClientId();
@@ -824,16 +936,23 @@ class LoginController extends BaseOidcController {
 			return $this->getBackchannelLogoutErrorResponse(
 				'invalid audience',
 				'The audience of the logout token does not match the provider',
-				['invalid_audience' => $logoutTokenPayload->aud]
+				[
+					'extra_context' => 'Probably is an IdP side issue',
+					'aud' => $aud,
+					'client_id' => $clientId,
+				]
 			);
 		}
 
 		// check the event attr
-		if (!isset($logoutTokenPayload->events->{'http://schemas.openid.net/event/backchannel-logout'})) {
+		if (!$logoutTokenPayload->events->{'http://schemas.openid.net/event/backchannel-logout'}) {
 			return $this->getBackchannelLogoutErrorResponse(
 				'invalid event',
 				'The backchannel-logout event was not found in the logout token',
-				['invalid_event' => true]
+				[
+					'extra_context' => 'Probably is an IdP side issue',
+					'events' => $logoutTokenPayload->events,
+				]
 			);
 		}
 
@@ -842,24 +961,41 @@ class LoginController extends BaseOidcController {
 			return $this->getBackchannelLogoutErrorResponse(
 				'invalid nonce',
 				'The logout token should not contain a nonce attribute',
-				['nonce_should_not_be_set' => true]
+				['extra_context' => 'Probably is an IdP side issue'],
 			);
 		}
 
-		if (!isset($logoutTokenPayload->iss)) {
+		$iss = $logoutTokenPayload->iss;
+		$discoveryIssuer = $discovery['issuer'] ?? '';
+		if ($iss !== $discoveryIssuer) {
 			return $this->getBackchannelLogoutErrorResponse(
 				'invalid iss',
-				'The logout token should contain an iss attribute',
-				['iss_should_be_set' => true]
+				'The iss of the logout token does not match the issuer',
+				[
+					'extra_context' => 'Probably is an IdP side issue',
+					'iss' => $iss,
+					'issuer' => $discoveryIssuer,
+				],
 			);
 		}
-		$iss = $logoutTokenPayload->iss;
+
+		if (($logoutTokenPayload->exp ?? 0) < $this->timeFactory->getTime()) {
+			return  $this->getBackchannelLogoutErrorResponse(
+				'invalid exp',
+				'The logout token is expired',
+				[
+					'extra_context' => 'Probably is an IdP side issue',
+					'exp' => $logoutTokenPayload->exp,
+					'current_time' => $this->timeFactory->getTime(),
+				],
+			);
+		}
 
 		if (!isset($logoutTokenPayload->sid) && !isset($logoutTokenPayload->sub)) {
 			return $this->getBackchannelLogoutErrorResponse(
 				'invalid sid+sub',
 				'The logout token should contain sid or sub or both',
-				['no_sid_no_sub' => true]
+				['extra_context' => 'Probably is an IdP side issue'],
 			);
 		}
 
@@ -871,39 +1007,32 @@ class LoginController extends BaseOidcController {
 			$sub = $logoutTokenPayload->sub ?? null;
 			try {
 				$oidcSession = $this->sessionMapper->findSessionBySid($sid, $sub, $iss);
+				$oidcSessionsToKill[] = $oidcSession;
 			} catch (DoesNotExistException $e) {
-				return $this->getBackchannelLogoutErrorResponse(
-					$sub === null ? 'invalid SID or ISS' : 'invalid SID, SUB or ISS',
-					$sub === null ? 'No session was found for this (sid,iss)' : 'No session was found for this (sid,sub,iss)',
-					['session_not_found' => $sid]
-				);
+				// Already-logged-out is a success per OIDC Backchannel Logout 1.0 §2.6.
+				// https://openid.net/specs/openid-connect-backchannel-1_0.html#BCActions
+				$this->logger->debug('[BackchannelLogout] OIDC session not found with sid+sub+iss (expected for a RP-initiated logout)');
 			} catch (MultipleObjectsReturnedException $e) {
-				return $this->getBackchannelLogoutErrorResponse(
-					$sub === null ? 'invalid SID or ISS' : 'invalid SID, SUB or ISS',
-					$sub === null ? 'Multiple sessions were found with this (sid,iss)' : 'Multiple sessions were found with this (sid,sub,iss)',
-					['multiple_sessions_found' => $sid]
+				$this->logger->warning('[BackchannelLogout] Multiple OIDC sessions retrieved (sid+sub+iss). '
+				. 'This should not happen.',
+					['exception' => $e],
 				);
 			}
-			$oidcSessionsToKill[] = $oidcSession;
 		} else {
 			// here we know the sid is not set so the sub is set
 			$sub = $logoutTokenPayload->sub;
 			try {
 				$oidcSessionsToKill = $this->sessionMapper->findSessionsBySubAndIss($sub, $iss);
-			} catch (\OCP\Db\Exception $e) {
-				return $this->getBackchannelLogoutErrorResponse(
-					'error with sub+iss',
-					'Failed to retrieve session with sub+iss',
-					['sub_iss_error' => true]
+			} catch (\OCP\DB\Exception $e) {
+				$this->logger->error(
+					'[BackchannelLogout] Database failure while trying to retrieve user session (sub+iss)',
+					['exception' => $e],
 				);
 			}
 
 			if (empty($oidcSessionsToKill)) {
-				return $this->getBackchannelLogoutErrorResponse(
-					'nothing found with sub+iss',
-					'No session found with sub+iss',
-					['sub_iss_no_session_found' => true]
-				);
+				// Already-logged-out is a success per OIDC Backchannel Logout 1.0 §2.6.
+				$this->logger->debug('[BackchannelLogout] OIDC session not found with sub+iss (expected for a RP-initiated logout)');
 			}
 		}
 
@@ -928,7 +1057,12 @@ class LoginController extends BaseOidcController {
 			$this->sessionMapper->delete($oidcSession);
 		}
 
-		return new JSONResponse([], Http::STATUS_OK);
+		// Tell the Idp not to cache the response
+		// Per RFC : https://openid.net/specs/openid-connect-backchannel-1_0.html#BCResponse
+		$response = new JSONResponse([], Http::STATUS_OK);
+		$response->cacheFor(0);
+
+		return $response;
 	}
 
 	/**
@@ -937,22 +1071,30 @@ class LoginController extends BaseOidcController {
 	 *
 	 * @param string $error
 	 * @param string $description
-	 * @param array $throttleMetadata
+	 * @param array $metadata
+	 * @param string $severity
 	 * @return JSONResponse
 	 */
 	private function getBackchannelLogoutErrorResponse(
 		string $error,
 		string $description,
-		array $throttleMetadata = [],
+		array $metadata = [],
+		string $severity = \Psr\Log\LogLevel::WARNING,
 	): JSONResponse {
-		$this->logger->debug('Backchannel logout error. ' . $error . ' ; ' . $description);
-		return new JSONResponse(
+		$this->logger->log($severity, 'Backchannel logout error. ' . $error . ' ; ' . $description,
+			$metadata);
+
+		$response = new JSONResponse(
 			[
 				'error' => $error,
 				'error_description' => $description,
 			],
 			Http::STATUS_BAD_REQUEST,
 		);
+		// Tell the Idp not to cache the response
+		// Per RFC : https://openid.net/specs/openid-connect-backchannel-1_0.html#BCResponse
+		$response->cacheFor(0);
+		return $response;
 	}
 
 	private function toCodeChallenge(string $data): string {
@@ -963,5 +1105,17 @@ class LoginController extends BaseOidcController {
 		$s = str_replace('+', '-', $s); // 62nd char of encoding
 		$s = str_replace('/', '_', $s); // 63rd char of encoding
 		return $s;
+	}
+
+	/**
+	 * Clean up session values for a given state suffix
+	 */
+	private function cleanupSessionState(string $sessionKeySuffix): void {
+		$this->session->remove(self::STATE . $sessionKeySuffix);
+		$this->session->remove(self::NONCE . $sessionKeySuffix);
+		$this->session->remove(self::LOGIN_PROVIDERID . $sessionKeySuffix);
+		$this->session->remove(self::REDIRECT_AFTER_LOGIN . $sessionKeySuffix);
+		$this->session->remove(self::CODE_VERIFIER . $sessionKeySuffix);
+		$this->session->remove(self::TIMESTAMP . $sessionKeySuffix);
 	}
 }

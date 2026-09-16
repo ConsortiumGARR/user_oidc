@@ -22,10 +22,13 @@ use OCA\UserOIDC\User\Validator\IBearerTokenValidator;
 use OCA\UserOIDC\User\Validator\SelfEncodedValidator;
 use OCA\UserOIDC\User\Validator\UserInfoValidator;
 use OCP\AppFramework\Db\DoesNotExistException;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Authentication\IApacheBackend;
 use OCP\DB\Exception;
 use OCP\EventDispatcher\GenericEvent;
 use OCP\EventDispatcher\IEventDispatcher;
+use OCP\Files\IRootFolder;
+use OCP\Files\ISetupManager;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\IConfig;
@@ -40,10 +43,15 @@ use OCP\User\Backend\ICountUsersBackend;
 use OCP\User\Backend\ICustomLogout;
 use OCP\User\Backend\IGetDisplayNameBackend;
 use OCP\User\Backend\IPasswordConfirmationBackend;
+use OCP\User\Backend\ISearchKnownUsersBackend;
+use OCP\User\Events\UserFirstTimeLoggedInEvent;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
-class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisplayNameBackend, IApacheBackend, ICustomLogout, ICountUsersBackend {
+class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisplayNameBackend, IApacheBackend, ICustomLogout, ICountUsersBackend, ISearchKnownUsersBackend {
+	private const SESSION_USER_DATA = 'user_oidc.oidcUserData';
+
+	/** @var list<class-string<IBearerTokenValidator>> */
 	private $tokenValidators = [
 		SelfEncodedValidator::class,
 		UserInfoValidator::class,
@@ -63,6 +71,7 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 		private ProvisioningService $provisioningService,
 		private LdapService $ldapService,
 		private IUserManager $userManager,
+		private ITimeFactory $timeFactory,
 	) {
 	}
 
@@ -70,18 +79,29 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 		return Application::APP_ID;
 	}
 
+	/**
+	 * Count the number of users managed by this OIDC backend.
+	 *
+	 * @return int the number of provisioned OIDC users
+	 */
 	public function countUsers(): int {
-		$uids = $this->getUsers();
-		return count($uids);
+		return $this->userMapper->countUsers();
 	}
 
 	public function deleteUser($uid): bool {
+		if (!is_string($uid) || $uid === '') {
+			return false;
+		}
+
 		try {
 			$user = $this->userMapper->getUser($uid);
 			$this->userMapper->delete($user);
 			return true;
+		} catch (DoesNotExistException $e) {
+			$this->logger->info('Tried to delete non-existent user', ['uid' => $uid, 'exception' => $e]);
+			return false;
 		} catch (Exception $e) {
-			$this->logger->error('Failed to delete user', [ 'exception' => $e ]);
+			$this->logger->error('Failed to delete user', ['uid' => $uid, 'exception' => $e]);
 			return false;
 		}
 	}
@@ -93,29 +113,23 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 		) {
 			return [];
 		}
-		return array_map(function ($user) {
-			return $user->getUserId();
-		}, $this->userMapper->find($search, $limit, $offset));
+		return array_map(static fn ($user) => $user->getUserId(), $this->userMapper->find($search, $limit, $offset));
 	}
 
 	public function userExists($uid): bool {
-		if (!is_string($uid)) {
-			return false;
-		}
-		return $this->userMapper->userExists($uid);
+		return is_string($uid) && $uid !== '' && $this->userMapper->userExists($uid);
 	}
 
 	public function getDisplayName($uid): string {
-		if (!is_string($uid)) {
+		if (!is_string($uid) || $uid === '') {
 			return (string)$uid;
 		}
 		try {
 			$user = $this->userMapper->getUser($uid);
-		} catch (DoesNotExistException $e) {
+			return $user->getDisplayName();
+		} catch (DoesNotExistException) {
 			return $uid;
 		}
-
-		return $user->getDisplayName();
 	}
 
 	public function getDisplayNames($search = '', $limit = null, $offset = null): array {
@@ -125,6 +139,7 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 		) {
 			return [];
 		}
+
 		return $this->userMapper->findDisplayNames($search, $limit, $offset);
 	}
 
@@ -161,10 +176,12 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 	}
 
 	/**
-	 * {@inheritdoc}
+	 * @return non-empty-string
 	 */
 	public function getLogoutUrl(): string {
-		return $this->urlGenerator->linkToRouteAbsolute('user_oidc.login.singleLogoutService');
+		/** @var non-empty-string $url */
+		$url = $this->urlGenerator->linkToRouteAbsolute('user_oidc.login.singleLogoutService');
+		return $url;
 	}
 
 	/**
@@ -172,14 +189,23 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 	 * Inspired by user_saml
 	 */
 	public function getUserData(): array {
-		$userData = $this->session->get('user_oidc.oidcUserData');
-		$providerId = (int)$this->session->get(LoginController::PROVIDERID);
-		$userData = $this->formatUserData($providerId, $userData);
+		$userData = $this->session->get(self::SESSION_USER_DATA) ?? [];
+		$rawProviderId = $this->session->get(LoginController::PROVIDERID);
+		if ($rawProviderId === null) {
+			throw new \InvalidArgumentException('No OIDC provider ID in session');
+		}
 
-		// make sure that a valid UID is given
-		if (empty($userData['formatted']['uid'])) {
-			$this->logger->error('No valid uid given, please check your attribute mapping. Got uid: {uid}', ['app' => 'user_oidc', 'uid' => $userData['formatted']['uid']]);
-			throw new \InvalidArgumentException('No valid uid given, please check your attribute mapping. Got uid: ' . $userData['formatted']['uid']);
+		$providerId = (int)$rawProviderId;
+
+		$userData = $this->formatUserData($providerId, is_array($userData) ? $userData : []);
+
+		if (!$this->isAcceptableUserId($userData['formatted']['uid'] ?? null)) {
+			$uid = is_scalar($userData['formatted']['uid'] ?? null) ? (string)$userData['formatted']['uid'] : '';
+			$this->logger->error('No valid uid given, please check your attribute mapping. Got uid: {uid}', [
+				'app' => 'user_oidc',
+				'uid' => $uid,
+			]);
+			throw new \InvalidArgumentException('No valid uid given, please check your attribute mapping. Got uid: ' . $uid);
 		}
 
 		return $userData;
@@ -204,7 +230,7 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 		}
 
 		$groupsAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_GROUPS, 'groups');
-		$result['formatted']['groups'] = $this->provisioningService->getClaimValue($attributes, $groupsAttribute, $providerId);
+		$result['formatted']['groups'] = $this->provisioningService->getClaimValues($attributes, $groupsAttribute, $providerId);
 
 		$uidAttribute = $this->providerService->getSetting($providerId, ProviderService::SETTING_MAPPING_UID, 'sub');
 		$result['formatted']['uid'] = $this->provisioningService->getClaimValue($attributes, $uidAttribute, $providerId);
@@ -229,6 +255,10 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 
 		// get the bearer token from headers
 		$headerToken = $this->request->getHeader(Application::OIDC_API_REQ_HEADER);
+		if (!str_starts_with($headerToken, 'bearer ') && !str_starts_with($headerToken, 'Bearer ')) {
+			$this->logger->debug('No Bearer token');
+			return '';
+		}
 		$headerToken = preg_replace('/^bearer\s+/i', '', $headerToken);
 		if ($headerToken === '') {
 			$this->logger->debug('No Bearer token');
@@ -338,11 +368,11 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 								}
 							}
 
-							$this->session->set('last-password-confirm', strtotime('+4 year', time()));
+							$this->session->set('last-password-confirm', $this->timeFactory->getTime() + 4 * 365 * 24 * 3600);
 							return $userId;
 						} elseif ($this->userExists($tokenUserId)) {
 							$this->checkFirstLogin($tokenUserId);
-							$this->session->set('last-password-confirm', strtotime('+4 year', time()));
+							$this->session->set('last-password-confirm', $this->timeFactory->getTime() + 4 * 365 * 24 * 3600);
 							return $tokenUserId;
 						} else {
 							// check if the user exists locally
@@ -363,7 +393,7 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 								return '';
 							}
 							$this->checkFirstLogin($tokenUserId);
-							$this->session->set('last-password-confirm', strtotime('+4 year', time()));
+							$this->session->set('last-password-confirm', $this->timeFactory->getTime() + 4 * 365 * 24 * 3600);
 							return $tokenUserId;
 						}
 					}
@@ -376,55 +406,89 @@ class Backend extends ABackend implements IPasswordConfirmationBackend, IGetDisp
 	}
 
 	/**
-	 * Inspired by lib/private/User/Session.php::prepareUserLogin()
+	 * Returns true only if $userId is a non-empty, non-whitespace-only string.
+	 * Used as a lightweight sanity check on user IDs returned by token validators
+	 * before any database lookup or provisioning takes place.
+	 */
+	private function isAcceptableUserId(mixed $userId): bool {
+		return is_string($userId) && $userId !== '' && trim($userId) !== '';
+	}
+
+	/**
 	 *
-	 * @param string $userId
-	 * @return bool
-	 * @throws NotFoundException
+	 * Performs first-login initialisation (home folder setup, skeleton copy, events)
+	 * if the user has never logged in before, then updates the last-login timestamp.
+	 * Inspired by lib/private/User/Session.php::prepareUserLogin().
 	 */
 	private function checkFirstLogin(string $userId): bool {
 		$user = $this->userManager->get($userId);
-
 		if ($user === null) {
 			return false;
 		}
 
 		$firstLogin = $user->getLastLogin() === 0;
 		if ($firstLogin) {
-			\OC_Util::setupFS($userId);
-			// trigger creation of user home and /files folder
-			$userFolder = \OC::$server->getUserFolder($userId);
-			try {
-				// copy skeleton
-				\OC_Util::copySkeleton($userId, $userFolder);
-			} catch (NotPermittedException $ex) {
-				// read only uses
+			/** Replace with ServerVersion once we depend on NC 31 */
+			if (version_compare($this->config->getSystemValueString('version', '0.0.0'), '34.0.0', '>=')) {
+				Server::get(ISetupManager::class)->setupForUser($user);
+			} else {
+				\OC_Util::setupFS($userId);
 			}
 
-			// trigger any other initialization
+			try {
+				// trigger creation of user home and /files folder
+				$userFolder = Server::get(IRootFolder::class)->getUserFolder($userId);
+				// copy skeleton
+				\OC_Util::copySkeleton($userId, $userFolder);
+			} catch (NotFoundException|NotPermittedException $ex) {
+				$this->logger->warning('Could not set up user folder on first login', ['exception' => $ex]);
+			}
+
 			$this->eventDispatcher->dispatch(IUser::class . '::firstLogin', new GenericEvent($user));
-			// TODO add this when user_oidc min NC version is >= 28
-			// $this->eventDispatcher->dispatchTyped(new UserFirstTimeLoggedInEvent($user));
+			$this->eventDispatcher->dispatchTyped(new UserFirstTimeLoggedInEvent($user));
 		}
+
 		$user->updateLastLoginTimestamp();
 		return $firstLogin;
 	}
 
 	/**
 	 * Triggers user provisioning based on the provided strategy
-	 *
-	 * @param string $provisioningStrategyClass
-	 * @param Provider $provider
-	 * @param string $tokenUserId
-	 * @param string $headerToken
-	 * @param IUser|null $existingUser
-	 * @return IUser|null
 	 */
 	private function provisionUser(
-		string $provisioningStrategyClass, Provider $provider, string $tokenUserId, string $headerToken,
+		string $provisioningStrategyClass,
+		Provider $provider,
+		string $tokenUserId,
+		string $headerToken,
 		?IUser $existingUser,
 	): ?IUser {
-		$provisioningStrategy = Server::get($provisioningStrategyClass);
-		return $provisioningStrategy->provisionUser($provider, $tokenUserId, $headerToken, $existingUser);
+		try {
+			$provisioningStrategy = Server::get($provisioningStrategyClass);
+			return $provisioningStrategy->provisionUser($provider, $tokenUserId, $headerToken, $existingUser);
+		} catch (Throwable $e) {
+			$this->logger->error('Failed to provision user via strategy', [
+				'strategy' => $provisioningStrategyClass,
+				'providerId' => $provider->getId(),
+				'providerIdentifier' => $provider->getIdentifier(),
+				'userId' => $tokenUserId,
+				'exception' => $e,
+			]);
+			return null;
+		}
+	}
+
+	#[\Override]
+	public function searchKnownUsersByDisplayName(string $searcher, string $pattern, ?int $limit = null, ?int $offset = null): array {
+		$limit = $this->fixLimit($limit);
+
+		return $this->userMapper->searchKnownUsersByDisplayName($searcher, $pattern, $limit, $offset);
+	}
+
+	private function fixLimit(?int $limit): ?int {
+		if (is_int($limit) && $limit >= 0) {
+			return $limit;
+		}
+
+		return null;
 	}
 }

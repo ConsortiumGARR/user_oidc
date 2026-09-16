@@ -8,6 +8,82 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 8.11.0 – 2026-08-24
+
+- Support for Nextcloud 35
+- Correctly get the list of groups @ArtificialOwl [#1494](https://github.com/nextcloud/user_oidc/pull/1494)
+- Save sub of an user for faster lookup and more uid stability @CarlSchwan [#1498](https://github.com/nextcloud/user_oidc/pull/1498)
+
+## 8.10.1 – 2026-04-24
+
+### Fixed
+
+- Use `version_compare` and `IConfig::getSystemValueString` instead of `$OC_Version` @julien-nc [#1425](https://github.com/nextcloud/user_oidc/pull/1425)
+
+## 8.10.0 – 2026-04-17
+
+### Added
+
+- Add debug log when storing state in PHP session during code flow @julien-nc [#1412](https://github.com/nextcloud/user_oidc/pull/1412)
+
+### Changed
+
+- Optimize user counting @CarlSchwan @solracsf [#1418](https://github.com/nextcloud/user_oidc/pull/1418)
+- Modernize user backend @CarlSchwan @solracsf [#1419](https://github.com/nextcloud/user_oidc/pull/1419)
+- Harden UserBackend::provisionUser and UserBackend::checkFirstLogin @CarlSchwan @solracsf [#1420](https://github.com/nextcloud/user_oidc/pull/1420)
+
+### Fixed
+
+- Only redirect to login flow when request comes from a navigation context, add support for storing multiple states and clean up flow session values on failure @julien-nc [#1410](https://github.com/nextcloud/user_oidc/pull/1410)
+
+## 8.9.0 – 2026-04-16
+
+### Added
+
+- Use new IAlternativeLoginProvider interface when available for alternative login methods @CarlSchwan @julien-nc [#1413](https://github.com/nextcloud/user_oidc/pull/1413)
+
+### Changed
+
+- Optimize LDAP user deleted check to avoid unnecessary LDAP lookups @CarlSchwan [#1414](https://github.com/nextcloud/user_oidc/pull/1414)
+
+### Fixed
+
+- Remove ServerVersion usage @CarlSchwan [#1407](https://github.com/nextcloud/user_oidc/pull/1407)
+- Trigger UserFirstTimeLoggedInEvent on first login @CarlSchwan [#1401](https://github.com/nextcloud/user_oidc/pull/1401)
+
+## 8.8.0 – 2026-04-03
+
+### Added
+
+- Refresh stored login tokens during active user sessions so IdP SSO sessions stay alive while users keep working @solracsf [#1391](https://github.com/nextcloud/user_oidc/pull/1391)
+
+### Changed
+
+- Move time handling to `ITimeFactory` across token, discovery, login, ID4ME, and backend flows to align with newer platform APIs @solracsf [#1392](https://github.com/nextcloud/user_oidc/pull/1392)
+- Add explicit return types to provider management `occ` commands for cleaner command API compatibility @CarlSchwan [#1400](https://github.com/nextcloud/user_oidc/pull/1400)
+- Remove the duplicate legacy API controller and keep the OCS API controller as the single implementation for provisioning endpoints @julien-nc [#1403](https://github.com/nextcloud/user_oidc/pull/1403)
+
+## 8.7.0 – 2026-03-26
+
+### Added
+
+- Add Microsoft Graph support and an `occ` option to resolve Entra ID group GUIDs to group names @small1 @julien-nc [#1379](https://github.com/nextcloud/user_oidc/pull/1379)
+
+### Changed
+
+- Hide provider secrets by default in `occ providers` output @julien-nc [#1385](https://github.com/nextcloud/user_oidc/pull/1385)
+- Replace deprecated backend APIs and adjust Psalm coverage for newer Nextcloud methods @CarlSchwan @julien-nc [#1372](https://github.com/nextcloud/user_oidc/pull/1372)
+- Update tests for PHPUnit deprecations and refresh composer dependencies @julien-nc [#1382](https://github.com/nextcloud/user_oidc/pull/1382)
+
+### Fixed
+
+- Avoid validating non-Bearer `Authorization` header values in the user backend @julien-nc [#1386](https://github.com/nextcloud/user_oidc/pull/1386)
+- Stop logging sensitive data during OIDC processing @julien-nc [#1380](https://github.com/nextcloud/user_oidc/pull/1380)
+- Set the user session after successful bearer token validation so injected user IDs stay available @hangerrits @solracsf [#1376](https://github.com/nextcloud/user_oidc/pull/1376)
+- Improve single logout JWT decode error reporting for too-short GSS secrets @nfebe [#1374](https://github.com/nextcloud/user_oidc/pull/1374)
+- Support dotted claim names when resolving nested OIDC claims @strobelpierre [#1375](https://github.com/nextcloud/user_oidc/pull/1375)
+- Stop using removed `OC\Server::getAppManager()` accessors and update related logout tests @julien-nc [#1371](https://github.com/nextcloud/user_oidc/pull/1371)
+
 ## 8.6.1 – 2026-03-10
 
 ### Fixed
@@ -588,4 +664,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Basic implementation of OIDC client
 - Expirimental support for ID4ME
-

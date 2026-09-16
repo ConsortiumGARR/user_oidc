@@ -34,7 +34,7 @@ class OcsApiController extends OCSController {
 	 * Create or update a user for a backend provider.
 	 *
 	 * @param int $providerId Numeric ID of the provider backend
-	 * @param string $userId Provider-specific user identifier
+	 * @param non-empty-string $userId Provider-specific user identifier
 	 * @param string|null $displayName Optional display name to set for the user
 	 * @param string|null $email Optional email address to set for the user
 	 * @param string|null $quota Optional quota value to set for the user
@@ -49,6 +49,9 @@ class OcsApiController extends OCSController {
 	): DataResponse {
 		$backendUser = $this->userMapper->getOrCreate($providerId, $userId);
 		$user = $this->userManager->get($backendUser->getUserId());
+		if ($user === null) {
+			throw new \RuntimeException('Unable to get user that was just created with userId=' . $backendUser->getUserId());
+		}
 
 		if ($displayName) {
 			if ($displayName !== $backendUser->getDisplayName()) {

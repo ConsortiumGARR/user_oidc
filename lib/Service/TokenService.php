@@ -13,6 +13,7 @@ use GuzzleHttp\Exception\ServerException;
 use OC\Authentication\Token\IProvider;
 use OCA\UserOIDC\AppInfo\Application;
 use OCA\UserOIDC\Db\ProviderMapper;
+use OCA\UserOIDC\Event\UserObtainedTokenEvent;
 use OCA\UserOIDC\Exception\TokenExchangeFailedException;
 use OCA\UserOIDC\Helper\HttpClientHelper;
 use OCA\UserOIDC\Model\Token;
@@ -20,6 +21,7 @@ use OCA\UserOIDC\Vendor\Firebase\JWT\JWT;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\MultipleObjectsReturnedException;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Authentication\Exceptions\ExpiredTokenException;
 use OCP\Authentication\Exceptions\InvalidTokenException;
 use OCP\Authentication\Exceptions\WipeTokenException;
@@ -67,11 +69,12 @@ class TokenService {
 		private DiscoveryService $discoveryService,
 		private ProviderMapper $providerMapper,
 		private ILockingProvider $lockingProvider,
+		private ITimeFactory $timeFactory,
 	) {
 	}
 
 	public function storeToken(array $tokenData): Token {
-		$token = new Token($tokenData);
+		$token = new Token($tokenData, $this->timeFactory);
 		$this->session->set(self::SESSION_TOKEN_KEY, json_encode($token, JSON_THROW_ON_ERROR));
 		$this->logger->debug('[TokenService] Store token in the session', ['session_id' => $this->session->getId()]);
 		return $token;
@@ -80,12 +83,14 @@ class TokenService {
 	/**
 	 * Get the token stored in the session
 	 * If it has expired: try to refresh it
+	 * If it is expiring and $refreshIfExpiring is true: proactively refresh it to keep the IdP session alive
 	 *
 	 * @param bool $refreshIfExpired
+	 * @param bool $refreshIfExpiring Proactively refresh a still-valid but expiring token (past half its lifetime)
 	 * @return Token|null Return a token only if it is valid or has been successfully refreshed
 	 * @throws \JsonException
 	 */
-	public function getToken(bool $refreshIfExpired = true): ?Token {
+	public function getToken(bool $refreshIfExpired = true, bool $refreshIfExpiring = false): ?Token {
 		$sessionData = $this->session->get(self::SESSION_TOKEN_KEY);
 		$this->logger->debug('[TokenService] Get token from the session', ['session_id' => $this->session->getId()]);
 		if (!$sessionData) {
@@ -93,9 +98,14 @@ class TokenService {
 			return null;
 		}
 
-		$token = new Token(json_decode($sessionData, true, 512, JSON_THROW_ON_ERROR));
+		$token = new Token(json_decode($sessionData, true, 512, JSON_THROW_ON_ERROR), $this->timeFactory);
 		// token is still valid
 		if (!$token->isExpired()) {
+			// proactively refresh when past half the token lifetime to keep the IdP session alive
+			if ($refreshIfExpiring && $token->isExpiring() && $token->getRefreshToken() !== null && !$token->refreshIsExpired()) {
+				$this->logger->debug('[TokenService] getToken: token is expiring, proactively refreshing to keep IdP session alive, expires in ' . strval($token->getExpiresInFromNow()));
+				return $this->refresh($token);
+			}
 			$this->logger->debug('[TokenService] getToken: token is still valid, it expires in ' . strval($token->getExpiresInFromNow()) . ' and refresh expires in ' . strval($token->getRefreshExpiresInFromNow()));
 			return $token;
 		}
@@ -157,7 +167,7 @@ class TokenService {
 			return;
 		}
 
-		$token = $this->getToken();
+		$token = $this->getToken(refreshIfExpired: true, refreshIfExpiring: true);
 		if ($token === null) {
 			$this->logger->debug('[TokenService] checkLoginToken: token is null');
 			// if we don't have a token but we had one once,
@@ -176,6 +186,15 @@ class TokenService {
 	}
 
 	public function reauthenticate(int $providerId) {
+		if (!RequestClassificationService::isTopLevelHtmlNavigation($this->request)) {
+			$this->userSession->logout();
+			$this->logger->debug('[TokenService] reauthenticate skipped: request is not a top-level HTML navigation', [
+				'provider_id' => $providerId,
+				'request_uri' => $this->request->getRequestUri(),
+			]);
+			return;
+		}
+
 		// Logout the user and redirect to the oidc login flow to gather a fresh token
 		$this->userSession->logout();
 		$redirectUrl = $this->urlGenerator->linkToRouteAbsolute(Application::APP_ID . '.login.login', [
@@ -225,8 +244,8 @@ class TokenService {
 			//     the token expiration and the moment it attempted to acquire the lock
 			$sessionData = $this->session->get(self::SESSION_TOKEN_KEY);
 			if ($sessionData) {
-				$currentToken = new Token(json_decode($sessionData, true, 512, JSON_THROW_ON_ERROR));
-				if (!$currentToken->isExpired()) {
+				$currentToken = new Token(json_decode($sessionData, true, 512, JSON_THROW_ON_ERROR), $this->timeFactory);
+				if (!$currentToken->isExpired() && !$currentToken->isExpiring()) {
 					$this->logger->debug('[TokenService] Token already refreshed by another request');
 					return $currentToken;
 				}
@@ -258,6 +277,17 @@ class TokenService {
 
 			$bodyArray = json_decode(trim($body), true, 512, JSON_THROW_ON_ERROR);
 			$this->logger->debug('[TokenService] ---- Refresh token success');
+
+			$currentUser = $this->userSession->getUser();
+			if ($currentUser !== null) {
+				$currentUserId = $currentUser->getUID();
+				$this->eventDispatcher->dispatchTyped(
+					new UserObtainedTokenEvent(
+						$currentUserId, $token->jsonSerialize(), $bodyArray, $oidcProvider, $discovery
+					)
+				);
+			}
+
 			return $this->storeToken(
 				array_merge($bodyArray, ['provider_id' => $token->getProviderId()])
 			);
@@ -368,7 +398,7 @@ class TokenService {
 				$bodyArray,
 				['provider_id' => $loginToken->getProviderId()],
 			);
-			return new Token($tokenData);
+			return new Token($tokenData, $this->timeFactory);
 		} catch (ClientException|ServerException $e) {
 			$response = $e->getResponse();
 			$body = (string)$response->getBody();
@@ -439,6 +469,6 @@ class TokenService {
 			'refresh_expires_in' => method_exists($generationEvent, 'getRefreshExpiresIn')
 				? $generationEvent->getRefreshExpiresIn()
 				: $generationEvent->getExpiresIn(),
-		]);
+		], $this->timeFactory);
 	}
 }

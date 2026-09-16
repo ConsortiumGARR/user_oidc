@@ -215,7 +215,7 @@ login. Admins can still use the regular login through adding the `?direct=1`
 parameter to the login URL.
 
 ```bash
-sudo -u www-data php var/www/nextcloud/occ config:app:set --type=string --value=0 user_oidc allow_multiple_user_backends
+sudo -u www-data php /var/www/nextcloud/occ config:app:set --type=string --value=0 user_oidc allow_multiple_user_backends
 ```
 
 ### PKCE
@@ -430,6 +430,16 @@ The following formats are supported for the groups claim:
 * String list of group names: `"groups": "group1,group2,group3"`
 * Array of group name strings: `"groups": ["group1", "group2", "group3"]`
 * Object with name and id: `"groups": [{ "gid": "id1", "displayName": "group1" }, ...]`
+
+### EntraID and Microsoft graph
+
+If using EntraID an option to turn on group name lookups via Microsoft Graph. It will loop through all guid a user has and store the names of the groups in Nextcloud.
+
+This can be done in the graphical settings for the provider by with the occ command to create/update providers:
+
+```
+sudo -u www-data php occ user_oidc:provider demoprovider --entraid-group-names=1
+```
 
 ### Disable audience and azp checks
 
