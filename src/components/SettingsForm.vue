@@ -75,6 +75,23 @@
 				type="text"
 				placeholder="claim1 claim2 claim3">
 		</p>
+		<h3><b>{{ t('user_oidc', 'Appearance') }}</b></h3>
+		<p>
+			<label for="appearance-icon">{{ t('user_oidc', 'Icon in base64') }}</label>
+			<input id="appearance-icon"
+				v-model="localProvider.settings.appearanceIcon"
+				type="text"
+				placeholder="data:image/svg+xml;base64,...">
+		</p>
+		<p>
+			<label for="appearance-buttonBackgroundColor">{{ t('user_oidc', 'Button background color in hex') }}</label>
+			<input id="appearance-buttonBackgroundColor"
+				v-model="localProvider.settings.appearanceButtonBackgroundColor"
+				type="text"
+				placeholder="#0082c9"
+				maxlength="7">
+		</p>
+
 		<h3><b>{{ t('user_oidc', 'Attribute mapping') }}</b></h3>
 		<NcCheckboxRadioSwitch
 			v-model="localProvider.settings.nestedAndFallbackClaims"
@@ -101,6 +118,14 @@
 				v-model="localProvider.settings.mappingGroups"
 				type="text"
 				placeholder="groups"
+				:disabled="!localProvider.settings.groupProvisioning">
+		</p>
+		<p>
+			<label for="mapping-group-admin-for">{{ t('user_oidc', 'Group admin for mapping') }}</label>
+			<input id="mapping-group-admin-for"
+				v-model="localProvider.settings.mappingGroupAdminFor"
+				type="text"
+				placeholder="group_admin_for"
 				:disabled="!localProvider.settings.groupProvisioning">
 		</p>
 
@@ -307,6 +332,14 @@
 		</NcCheckboxRadioSwitch>
 		<p class="settings-hint">
 			{{ t('user_oidc', 'Users that are not part of any whitelisted group are not created and can not login') }}
+		</p>
+		<NcCheckboxRadioSwitch
+			v-model="localProvider.settings.forbidLoginWithoutGroup"
+			wrapper-element="div">
+			{{ t('user_oidc', 'Forbid login to users without at least one group') }}
+		</NcCheckboxRadioSwitch>
+		<p class="settings-hint">
+			{{ t('user_oidc', 'When enabled, users must belong to at least one group provided by the OIDC group claim in order to log in.') }}
 		</p>
 		<NcCheckboxRadioSwitch
 			v-model="localProvider.settings.checkBearer"

@@ -16,6 +16,7 @@ namespace OCA\UserOIDC;
  *     mappingQuota: string,
  *     mappingUid: string,
  *     mappingGroups: string,
+ *     mappingGroupAdminFor: string,
  *     mappingLanguage: string,
  *     mappingLocale: string,
  *     mappingAddress: string,
@@ -45,8 +46,11 @@ namespace OCA\UserOIDC;
  *     groupProvisioning: bool,
  *     groupWhitelistRegex: string,
  *     restrictLoginToGroups: bool,
+ *     forbidLoginWithoutGroup: bool,
  *     nestedAndFallbackClaims: bool,
  *     enrichLoginIdTokenWithUserinfo: bool,
+ *     appearanceIcon: string,
+ *     appearanceButtonBackgroundColor: string,
  * }
  *
  * @psalm-type UserOIDCProvider = array{

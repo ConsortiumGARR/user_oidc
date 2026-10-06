@@ -142,16 +142,20 @@ class LoginController extends BaseOidcController {
 	 * @return RedirectResponse
 	 */
 	private function getRedirectResponse(?string $redirectUrl = null): RedirectResponse {
+		$baseUrl = $this->urlGenerator->getBaseUrl();
+
 		if ($redirectUrl === null) {
-			return new RedirectResponse($this->urlGenerator->getBaseUrl());
+			return new RedirectResponse($baseUrl);
 		}
 
 		// Remove protocol and domain name
 		$filtered = preg_replace('/^https?:\/\/[^\/]+/', '', $redirectUrl) ?? '';
 
-		// Additional check: ensure the result starts with a single /
-		if (!preg_match('/^\/[^\/]/', $filtered)) {
-			return new RedirectResponse($this->urlGenerator->getBaseUrl());
+		// Reject protocol-relative URLs and anything not starting with a single slash followed
+		// by an alphanumeric or one of [_-.~?#]
+		if (!preg_match('/^\/[A-Za-z0-9_\-.~?#]/', $filtered)) {
+			$this->logger->error("Rejected invalid redirect url '{$filtered}'");
+			return new RedirectResponse($baseUrl);
 		}
 
 		return new RedirectResponse($filtered);
@@ -632,6 +636,20 @@ class LoginController extends BaseOidcController {
 				$this->cleanupSessionState($sessionKeySuffix);
 				$message = $this->l10n->t('You do not have permission to log in to this instance. If you think this is an error, please contact an administrator.');
 				return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, ['reason' => 'user not in any whitelisted group']);
+			}
+		}
+
+		// Forbid login of users that are not in any group
+		$forbidLoginWithoutGroup = $this->providerService->getSetting($providerId, ProviderService::SETTING_FORBID_LOGIN_WITHOUT_GROUP, '0');
+
+		if ($forbidLoginWithoutGroup === '1') {
+			$hasGroups = $this->provisioningService->hasGroups($providerId, $idTokenPayload);
+
+			if (!$hasGroups) {
+				$this->logger->debug('Prevented user from login as user is not part of any group');
+				$this->cleanupSessionState($sessionKeySuffix);
+				$message = $this->l10n->t('You do not have permission to log in to this instance. If you think this is an error, please contact an administrator.');
+				return $this->build403TemplateResponse($message, Http::STATUS_FORBIDDEN, ['reason' => 'user not in any group']);
 			}
 		}
 

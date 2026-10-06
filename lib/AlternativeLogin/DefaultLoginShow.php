@@ -10,27 +10,29 @@ declare(strict_types=1);
 namespace OCA\UserOIDC\AlternativeLogin;
 
 use OCP\Authentication\IAlternativeLogin;
+use OCP\IL10N;
+use OCP\Util;
 
-class AlternativeLogin implements IAlternativeLogin {
+class DefaultLoginShow implements IAlternativeLogin {
 	public function __construct(
-		private string $name,
-		private string $href,
-		private string $class = '',
+		private string $appName,
+		private IL10N $l,
 	) {
 	}
 
 	public function getLabel(): string {
-		return $this->name;
+		return $this->l->t('Log in with username or email');
 	}
 
 	public function getLink(): string {
-		return $this->href;
+		return '#body-login';
 	}
 
 	public function getClass(): string {
-		return $this->class;
+		return '';
 	}
 
 	public function load(): void {
+		Util::addStyle('user_oidc', 'hide_default_login');
 	}
 }

@@ -1,0 +1,51 @@
+name: Build and publish with krankerl
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: garr-8.11.0
+      - name: Get version from info.xml
+        id: getxml
+        uses: mavrosxristoforos/get-xml-info@1.0
+        with:
+          xml-file: 'appinfo/info.xml'
+          xpath: '//version'
+
+      - name: Show version
+        run: echo "Version=${{ steps.getxml.outputs.info }}"
+
+      - name: Prepare build folder
+        run: |
+            mkdir -p build/artifacts
+            sudo chown -R 1000:1000 build
+
+      - name: Run build script
+        run: |
+          ./build_with_docker.sh krankerl
+
+      - name: Verify artifact
+        run: |
+          ls -lh build/artifacts/user_oidc.tar.gz
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.getxml.outputs.info }}
+          name: v${{ steps.getxml.outputs.info }}
+          draft: false
+          prerelease: false
+          files: build/artifacts/user_oidc.tar.gz
+          overwrite_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

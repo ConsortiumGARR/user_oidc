@@ -95,6 +95,7 @@
                     "mappingQuota",
                     "mappingUid",
                     "mappingGroups",
+                    "mappingGroupAdminFor",
                     "mappingLanguage",
                     "mappingLocale",
                     "mappingAddress",
@@ -124,8 +125,11 @@
                     "groupProvisioning",
                     "groupWhitelistRegex",
                     "restrictLoginToGroups",
+                    "forbidLoginWithoutGroup",
                     "nestedAndFallbackClaims",
-                    "enrichLoginIdTokenWithUserinfo"
+                    "enrichLoginIdTokenWithUserinfo",
+                    "appearanceIcon",
+                    "appearanceButtonBackgroundColor"
                 ],
                 "properties": {
                     "mappingDisplayName": {
@@ -141,6 +145,9 @@
                         "type": "string"
                     },
                     "mappingGroups": {
+                        "type": "string"
+                    },
+                    "mappingGroupAdminFor": {
                         "type": "string"
                     },
                     "mappingLanguage": {
@@ -230,11 +237,20 @@
                     "restrictLoginToGroups": {
                         "type": "boolean"
                     },
+                    "forbidLoginWithoutGroup": {
+                        "type": "boolean"
+                    },
                     "nestedAndFallbackClaims": {
                         "type": "boolean"
                     },
                     "enrichLoginIdTokenWithUserinfo": {
                         "type": "boolean"
+                    },
+                    "appearanceIcon": {
+                        "type": "string"
+                    },
+                    "appearanceButtonBackgroundColor": {
+                        "type": "string"
                     }
                 }
             }

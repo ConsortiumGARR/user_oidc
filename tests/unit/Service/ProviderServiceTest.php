@@ -67,6 +67,7 @@ class ProviderServiceTest extends TestCase {
 					'mappingQuota' => '1',
 					'mappingUid' => '1',
 					'mappingGroups' => '1',
+					'mappingGroupAdminFor' => '1',
 					'mappingLanguage' => '1',
 					'mappingLocale' => '1',
 					'mappingAddress' => '1',
@@ -96,9 +97,12 @@ class ProviderServiceTest extends TestCase {
 					'groupProvisioning' => true,
 					'groupWhitelistRegex' => '1',
 					'restrictLoginToGroups' => true,
+					'forbidLoginWithoutGroup' => true,
 					'azureGroupNames' => true,
 					'nestedAndFallbackClaims' => true,
 					'enrichLoginIdTokenWithUserinfo' => true,
+					'appearanceIcon' => '1',
+					'appearanceButtonBackgroundColor' => '1',
 				],
 			],
 			[
@@ -115,6 +119,7 @@ class ProviderServiceTest extends TestCase {
 					'mappingQuota' => '1',
 					'mappingUid' => '1',
 					'mappingGroups' => '1',
+					'mappingGroupAdminFor' => '1',
 					'mappingLanguage' => '1',
 					'mappingLocale' => '1',
 					'mappingAddress' => '1',
@@ -144,9 +149,12 @@ class ProviderServiceTest extends TestCase {
 					'groupProvisioning' => true,
 					'groupWhitelistRegex' => '1',
 					'restrictLoginToGroups' => true,
+					'forbidLoginWithoutGroup' => true,
 					'azureGroupNames' => true,
 					'nestedAndFallbackClaims' => true,
 					'enrichLoginIdTokenWithUserinfo' => true,
+					'appearanceIcon' => '1',
+					'appearanceButtonBackgroundColor' => '1',
 				],
 			],
 		], $this->providerService->getProvidersWithSettings());
@@ -159,6 +167,7 @@ class ProviderServiceTest extends TestCase {
 			'mappingQuota' => '1g',
 			'mappingUid' => 'uid',
 			'mappingGroups' => 'groups',
+			'mappingGroupAdminFor' => 'group_admin_for',
 			'uniqueUid' => true,
 			'checkBearer' => false,
 			'bearerProvisioning' => false,
@@ -188,9 +197,12 @@ class ProviderServiceTest extends TestCase {
 			'mappingBirthdate' => 'birthdate',
 			'groupWhitelistRegex' => '',
 			'restrictLoginToGroups' => false,
+			'forbidLoginWithoutGroup' => false,
 			'azureGroupNames' => false,
 			'nestedAndFallbackClaims' => false,
 			'enrichLoginIdTokenWithUserinfo' => false,
+			'appearanceIcon' => '',
+			'appearanceButtonBackgroundColor' => '',
 		];
 		$this->appConfig->expects(self::any())
 			->method('getValueString')
@@ -200,6 +212,7 @@ class ProviderServiceTest extends TestCase {
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_QUOTA, '', true, '1g'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_UID, '', true, 'uid'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_GROUPS, '', true, 'groups'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_GROUP_ADMIN_FOR, '', true, 'group_admin_for'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_LANGUAGE, '', true, 'language'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_LOCALE, '', true, 'locale'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_MAPPING_ADDRESS, '', true, 'address'],
@@ -229,9 +242,12 @@ class ProviderServiceTest extends TestCase {
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_GROUP_PROVISIONING, '', true, '1'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_GROUP_WHITELIST_REGEX, '', true, ''],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_RESTRICT_LOGIN_TO_GROUPS, '', true, '0'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_FORBID_LOGIN_WITHOUT_GROUP, '', true, '0'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_AZURE_GROUP_NAMES, '', true, '0'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_RESOLVE_NESTED_AND_FALLBACK_CLAIMS_MAPPING, '', true, '0'],
 				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_ENRICH_LOGIN_ID_TOKEN_WITH_USERINFO, '', true, '0'],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_APPEARANCE_ICON, '', true, ''],
+				[Application::APP_ID, 'provider-1-' . ProviderService::SETTING_APPEARANCE_BUTTON_BACKGROUND_COLOR, '', true, ''],
 			]);
 
 		Assert::assertEquals(
